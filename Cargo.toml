@@ -20,6 +20,7 @@ byteorder = "^1.0"
 log = "^0.3"
 rust-crypto = "^0.2"
 rand = "^0.3"
+num-bigint = { git = "https://github.com/rust-num/num" }
 
 [target.'cfg(target_os = "redox")'.dependencies]
 redox_syscall = "0.1"

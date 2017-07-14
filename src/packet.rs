@@ -4,6 +4,7 @@ use std::string::ToString;
 use std::io::{self, BufReader, Write, Read, Result};
 use message::MessageType;
 use byteorder::{ReadBytesExt, WriteBytesExt, BigEndian};
+use num_bigint::BigInt;
 
 pub struct Packet {
     payload: Vec<u8>
@@ -62,7 +63,7 @@ impl Packet {
     }
 
     pub fn reader<'a>(&'a self) -> BufReader<&'a [u8]> {
-        BufReader::new(self.payload.as_slice())
+        BufReader::new(&self.payload.as_slice()[1..])
     }
 
     pub fn padding_len(&self) -> usize {
@@ -76,18 +77,15 @@ impl Packet {
 }
 
 pub trait ReadPacketExt: ReadBytesExt {
-    fn read_msg_type(&mut self) -> Result<MessageType> {
-        Ok(self.read_u8()?.into())
-    }
-
     fn read_string(&mut self) -> Result<Vec<u8>> {
         let len = self.read_u32::<BigEndian>()?;
         self.read_bytes(len as usize)
     }
 
-    fn read_mpint(&mut self) -> Result<Vec<u8>> {
+    fn read_mpint(&mut self) -> Result<BigInt> {
         let len = self.read_u32::<BigEndian>()?;
-        self.read_bytes(len as usize)
+        let bytes = self.read_bytes(len as usize)?;
+        Ok(BigInt::from_signed_bytes_be(bytes.as_slice()))
     }
 
     fn read_bytes(&mut self, len: usize) -> Result<Vec<u8>> {
@@ -134,6 +132,12 @@ pub trait WritePacketExt: WriteBytesExt {
 
     fn write_bool(&mut self, value: bool) -> Result<()> {
         self.write_u8(if value { 1 } else { 0 })
+    }
+
+    fn write_mpint(&mut self, value: BigInt) -> Result<()> {
+        let bytes = value.to_signed_bytes_be();
+        self.write_u32::<BigEndian>(bytes.len() as u32 + 1)?;
+        self.write_bytes(bytes.as_slice())
     }
 
     fn write_list<T: ToString>(&mut self, list: &[T]) -> Result<()> {

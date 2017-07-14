@@ -1,6 +1,7 @@
 extern crate byteorder;
 extern crate rand;
 extern crate crypto;
+extern crate num_bigint;
 #[macro_use]
 extern crate log;
 

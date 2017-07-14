@@ -1,4 +1,4 @@
-use key_exchange::KeyExchange;
+use key_exchange::{self, KeyExchange, KeyExchangeResult};
 use message::MessageType;
 use packet::{Packet, ReadPacketExt, WritePacketExt};
 use std::io::Write;
@@ -7,29 +7,29 @@ use std::io::Write;
 enum SessionState {
     Initial,
     KeyExchange,
-    Established
+    Established,
 }
 
 #[derive(PartialEq)]
 pub enum SessionType {
     Server,
-    Client
+    Client,
 }
 
-pub struct Session<'a, W: Write> {
+pub struct Session<W: Write> {
     stype: SessionType,
     state: SessionState,
-    key_exchange: Option<&'a KeyExchange>,
-    stream: W
+    key_exchange: Option<Box<KeyExchange>>,
+    stream: W,
 }
 
-impl<'a, W: Write> Session<'a, W> {
-    pub fn new(stype: SessionType, stream: W) -> Session<'a, W> {
+impl<W: Write> Session<W> {
+    pub fn new(stype: SessionType, stream: W) -> Session<W> {
         Session {
             stype: stype,
             state: SessionState::Initial,
             key_exchange: None,
-            stream: stream
+            stream: stream,
         }
     }
 
@@ -38,6 +38,20 @@ impl<'a, W: Write> Session<'a, W> {
             MessageType::KexInit => {
                 println!("Starting Key Exchange!");
                 self.kex_init(packet);
+            }
+            MessageType::KeyExchange(_) => {
+                if let Some(ref kex) = self.key_exchange {
+                    match kex.process(packet) {
+                        KeyExchangeResult::Ok(Some(packet)) => { packet.write_to(&mut self.stream); },
+                        KeyExchangeResult::Error(Some(packet)) => { packet.write_to(&mut self.stream); },
+                        KeyExchangeResult::Done(Some(packet)) => { packet.write_to(&mut self.stream); },
+                        KeyExchangeResult::Ok(None) |
+                        KeyExchangeResult::Error(None) |
+                        KeyExchangeResult::Done(None) => {}
+                    };
+                } else {
+                    warn!("Received KeyExchange packet without KexInit");
+                }
             }
             _ => {
                 println!("Unhandled packet: {:?}", packet);
@@ -49,7 +63,6 @@ impl<'a, W: Write> Session<'a, W> {
         use algorithm::*;
         let mut reader = packet.reader();
 
-        reader.read_msg_type();
         let cookie = reader.read_bytes(16);
         let kex_algos = reader.read_enum_list::<KeyExchangeAlgorithm>();
         let srv_host_key_algos = reader.read_enum_list::<PublicKeyAlgorithm>();
@@ -66,11 +79,11 @@ impl<'a, W: Write> Session<'a, W> {
         let mac_algo = negotiate(MAC, mac_algos_s2c.unwrap().as_slice());
         let comp_algo = negotiate(COMPRESSION, comp_algos_s2c.unwrap().as_slice());
 
-        println!("Negociated Kex Algorithm: {:?}", kex_algo);
-        println!("Negociated Host Key Algorithm: {:?}", srv_host_key_algo);
-        println!("Negociated Encryption Algorithm: {:?}", enc_algo);
-        println!("Negociated Mac Algorithm: {:?}", mac_algo);
-        println!("Negociated Comp Algorithm: {:?}", comp_algo);
+        println!("Negotiated Kex Algorithm: {:?}", kex_algo);
+        println!("Negotiated Host Key Algorithm: {:?}", srv_host_key_algo);
+        println!("Negotiated Encryption Algorithm: {:?}", enc_algo);
+        println!("Negotiated Mac Algorithm: {:?}", mac_algo);
+        println!("Negotiated Comp Algorithm: {:?}", comp_algo);
 
         use rand::{OsRng, Rng};
         let mut rng = OsRng::new().unwrap();
@@ -94,6 +107,7 @@ impl<'a, W: Write> Session<'a, W> {
         });
 
         self.state = SessionState::KeyExchange;
+        self.key_exchange = Some(Box::new(key_exchange::DhGroupSha1::new()));
         packet.write_to(&mut self.stream);
     }
 }

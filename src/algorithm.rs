@@ -3,29 +3,24 @@ use std::fmt;
 
 /// Slice of implemented key exchange algorithms, ordered by preference
 pub static KEY_EXCHANGE: &[KeyExchangeAlgorithm] = &[
-    KeyExchangeAlgorithm::CURVE25519_SHA256
+    KeyExchangeAlgorithm::DH_GROUP_EXCHANGE_SHA1,
+//    KeyExchangeAlgorithm::CURVE25519_SHA256,
 ];
 
 /// Slice of implemented host key algorithms, ordered by preference
-pub static HOST_KEY: &[PublicKeyAlgorithm] = &[
-    PublicKeyAlgorithm::SSH_ED25519
+pub static HOST_KEY: &[PublicKeyAlgorithm] = &[PublicKeyAlgorithm::SSH_RSA,
+      // PublicKeyAlgorithm::SSH_ED25519
 ];
 
 /// Slice of implemented encryption algorithms, ordered by preference
-pub static ENCRYPTION: &[EncryptionAlgorithm] = &[
-    EncryptionAlgorithm::AES256_CTR
-];
+pub static ENCRYPTION: &[EncryptionAlgorithm] = &[EncryptionAlgorithm::AES256_CTR];
 
 /// Slice of implemented MAC algorithms, ordered by preference
-pub static MAC: &[MacAlgorithm] = &[
-    MacAlgorithm::HMAC_SHA2_512
-];
+pub static MAC: &[MacAlgorithm] = &[MacAlgorithm::HMAC_SHA2_512];
 
 /// Slice of implemented compression algorithms, ordered by preference
-pub static COMPRESSION: &[CompressionAlgorithm] = &[
-    CompressionAlgorithm::None,
-    CompressionAlgorithm::Zlib
-];
+pub static COMPRESSION: &[CompressionAlgorithm] =
+    &[CompressionAlgorithm::None, CompressionAlgorithm::Zlib];
 
 /// Find the best matching algorithm
 pub fn negotiate<A: PartialEq + Copy>(server: &[A], client: &[A]) -> Option<A> {
@@ -169,7 +164,7 @@ impl FromStr for EncryptionAlgorithm {
             "aes256-cbc" => Ok(AES256_CBC),
             "none" => Ok(EncryptionAlgorithm::None),
             _ => {
-                println!("Unknown encryption algorithm: `{}`", s);
+                debug!("Unknown encryption algorithm: `{}`", s);
                 Err(())
             }
         }
@@ -209,7 +204,7 @@ impl FromStr for MacAlgorithm {
             "hmac-sha2-256" => Ok(MacAlgorithm::HMAC_SHA2_256),
             "hmac-sha2-512" => Ok(MacAlgorithm::HMAC_SHA2_512),
             _ => {
-                println!("Unknown mac algorithm: {}", s);
+                debug!("Unknown mac algorithm: {}", s);
                 Err(())
             }
         }
@@ -223,7 +218,7 @@ impl fmt::Display for MacAlgorithm {
             &HMAC_SHA1 => "hmac-sha1",
             &HMAC_SHA2_256 => "hmac-sha2-256",
             &HMAC_SHA2_512 => "hmac-sha2-512",
-            &MacAlgorithm::None => "none"
+            &MacAlgorithm::None => "none",
         })
     }
 }
@@ -241,7 +236,7 @@ impl FromStr for CompressionAlgorithm {
             "zlib" => Ok(CompressionAlgorithm::Zlib),
             "none" => Ok(CompressionAlgorithm::None),
             _ => {
-                println!("Unknown compression algorithm: {}", s);
+                debug!("Unknown compression algorithm: {}", s);
                 Err(())
             }
         }
@@ -252,7 +247,7 @@ impl fmt::Display for CompressionAlgorithm {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.write_str(match self {
             &CompressionAlgorithm::Zlib => "zlib",
-            &CompressionAlgorithm::None => "none"
+            &CompressionAlgorithm::None => "none",
         })
     }
 }

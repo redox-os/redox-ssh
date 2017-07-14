@@ -39,11 +39,10 @@ impl Server {
         ));
 
         println!("Incoming connection from {}", addr);
+        protocol::send_identification(&mut stream)?;
 
         let id = protocol::read_identification(&mut stream)?;
         println!("{} identifies as {}", addr, id);
-
-        protocol::send_identification(&mut stream)?;
 
         let mut session = Session::new(SessionType::Server, stream.try_clone().unwrap());
 
@@ -51,33 +50,6 @@ impl Server {
             let packet = Packet::read_from(&mut stream).unwrap();
             println!("packet: {:?}", packet);
             session.process(&packet);
-
-            use rand::{OsRng, Rng};
-            let mut rng = OsRng::new()?;
-
-            /*
-            if message.msg_type() == MessageType::KexInit {
-xs               let cookie: Vec<u8> = rng.gen_iter::<u8>().take(16).collect();
-                let kex = message::kex::KeyExchangeInit {
-                    cookie: cookie,
-                    kex_algorithms: vec![message::kex::KeyExchangeAlgorithm::CURVE25519_SHA256],
-                    server_host_key_algorithms: vec![message::kex::HostKeyAlgorithm::SSH_ED25519],
-                    encryption_algorithms_client_to_server: vec![message::kex::EncryptionAlgorithm::AES256_CTR],
-                    encryption_algorithms_server_to_client: vec![message::kex::EncryptionAlgorithm::AES256_CTR],
-                    mac_algorithms_client_to_server: vec![message::kex::MacAlgorithm::HMAC_SHA2_512],
-                    mac_algorithms_server_to_client: vec![message::kex::MacAlgorithm::HMAC_SHA2_512],
-                    compression_algorithms_client_to_server: vec![message::kex::CompressionAlgorithm::None],
-                    compression_algorithms_server_to_client: vec![message::kex::CompressionAlgorithm::None],
-                    languages_client_to_server: vec![],
-                    languages_server_to_client: vec![],
-                    first_kex_packet_follows: false
-                };
-                protocol::write_message(&mut stream, &kex);
-            }
-            else {
-                println!("Unhandled Message Type");
-            }
-            */
         }
         Ok(())
     }
