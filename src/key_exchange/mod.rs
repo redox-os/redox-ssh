@@ -14,5 +14,5 @@ pub enum KeyExchangeResult {
 }
 
 pub trait KeyExchange {
-    fn process(&self, packet: &Packet) -> KeyExchangeResult;
+    fn process(&mut self, packet: &Packet) -> KeyExchangeResult;
 }

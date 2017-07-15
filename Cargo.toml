@@ -10,10 +10,17 @@ path = "src/lib.rs"
 [[bin]]
 name = "ssh"
 path = "src/bin/ssh.rs"
+doc = false
 
 [[bin]]
 name = "sshd"
 path = "src/bin/sshd.rs"
+doc = false
+
+[[bin]]
+name = "ssh-keygen"
+path = "src/bin/ssh-keygen.rs"
+doc = false
 
 [dependencies]
 byteorder = "^1.0"
@@ -21,6 +28,11 @@ log = "^0.3"
 rust-crypto = "^0.2"
 rand = "^0.3"
 num-bigint = { git = "https://github.com/rust-num/num" }
+num-traits = { git = "https://github.com/rust-num/num" }
+
+[dependencies.ring]
+version = "^0.11.0"
+features = ["rsa_signing"]
 
 [target.'cfg(target_os = "redox")'.dependencies]
 redox_syscall = "0.1"

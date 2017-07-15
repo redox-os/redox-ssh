@@ -12,7 +12,7 @@ impl Curve25519 {
 }
 
 impl KeyExchange for Curve25519 {
-    fn process(&self, packet: &Packet) -> KeyExchangeResult {
+    fn process(&mut self, packet: &Packet) -> KeyExchangeResult {
         KeyExchangeResult::Ok(None)
     }
 }

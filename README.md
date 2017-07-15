@@ -1,17 +1,24 @@
 # redox-ssh
 
-A ssh client and server written entirely on rust, primarily targeted at (http://redox-os.org).
+A ssh client and server written entirely on rust, primarily targeted at [Redox OS](http://redox-os.org).
 
 ## Features
 
 Currently implemented features, ordered by priority:
 
-  [ ] SSH Server
-  [ ] SSH Client
-  [ ] Encryption
-  [ ] Public key authentication
-  [ ] Port forwarding
-  [ ] SCP File Transfers
+  - [ ] SSH Server
+  - [ ] SSH Client
+  - [ ] Key Exchange algorithms
+    - [ ] `diffie-hellman-group-exchange-sha1`
+    - [ ] `curve25519-sha256`
+  - [ ] Public Key algorithms
+    - [ ] `ssh-rsa`
+    - [ ] `ssh-ed25519`
+  - [ ] Encryption algorithms
+    - [ ] `aes256-ctr`
+    - [ ] `aes256-gcm`
+  - [ ] Port forwarding
+  - [ ] SCP File Transfers
 
 ## License
 

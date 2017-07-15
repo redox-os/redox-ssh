@@ -40,7 +40,7 @@ impl<W: Write> Session<W> {
                 self.kex_init(packet);
             }
             MessageType::KeyExchange(_) => {
-                if let Some(ref kex) = self.key_exchange {
+                if let Some(ref mut kex) = self.key_exchange {
                     match kex.process(packet) {
                         KeyExchangeResult::Ok(Some(packet)) => { packet.write_to(&mut self.stream); },
                         KeyExchangeResult::Error(Some(packet)) => { packet.write_to(&mut self.stream); },

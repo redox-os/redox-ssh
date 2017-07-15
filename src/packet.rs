@@ -88,6 +88,10 @@ pub trait ReadPacketExt: ReadBytesExt {
         Ok(BigInt::from_signed_bytes_be(bytes.as_slice()))
     }
 
+    fn read_uint32(&mut self) -> Result<u32> {
+        Ok(self.read_u32::<BigEndian>()?)
+    }
+
     fn read_bytes(&mut self, len: usize) -> Result<Vec<u8>> {
         let mut buffer = Vec::with_capacity(len);
         self.take(len as u64).read_to_end(&mut buffer)?;
@@ -136,7 +140,7 @@ pub trait WritePacketExt: WriteBytesExt {
 
     fn write_mpint(&mut self, value: BigInt) -> Result<()> {
         let bytes = value.to_signed_bytes_be();
-        self.write_u32::<BigEndian>(bytes.len() as u32 + 1)?;
+        self.write_u32::<BigEndian>(bytes.len() as u32)?;
         self.write_bytes(bytes.as_slice())
     }
 
