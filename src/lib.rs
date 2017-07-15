@@ -12,7 +12,7 @@ mod message;
 mod session;
 mod key_exchange;
 
-pub mod key;
+pub mod public_key;
 pub mod server;
 
 pub use self::server::{Server, ServerConfig};
