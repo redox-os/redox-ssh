@@ -91,7 +91,7 @@ impl<W: Write> Session<W> {
 
         let mut packet = Packet::new(MessageType::KexInit);
         packet.with_writer(&|w| {
-            w.write_bytes(cookie.as_slice());
+            w.write_raw_bytes(cookie.as_slice());
             w.write_list(KEY_EXCHANGE);
             w.write_list(HOST_KEY);
             w.write_list(ENCRYPTION);

@@ -1,41 +1,26 @@
-use std::io::{Result, Read, Write};
+use std::io::{self, Read, Write};
 
-mod rsa;
+//mod rsa;
+mod ed25519;
 
-pub use self::rsa::RSA;
+//pub use self::rsa::RSA;
+pub use self::ed25519::ED25519;
 
-pub trait Key {
+pub trait KeyPair {
     fn system(&self) -> &'static CryptoSystem;
 
-    fn read(&self, r: &mut Read) -> Result<Box<Self>>
-    where
-        Self: Sized;
+    fn has_private(&self) -> bool;
 
-    fn import(&self, r: &mut Read) -> Result<Box<Self>>
-    where
-        Self: Sized,
-    {
-        self.read(r)
-    }
+    fn verify(&self, data: &[u8], signature: &[u8]) -> Result<bool, ()>;
+    fn sign(&self, data: &[u8]) -> Result<Vec<u8>, ()>;
 
-    fn write(&self, w: &mut Write) -> Result<()>;
-
-    fn export(&self, w: &mut Write) -> Result<()> {
-        self.write(w)
-    }
+    fn write_public(&self, w: &mut Write) -> io::Result<()>;
+    fn export(&self, w: &mut Write) -> io::Result<()>;
 }
-
-pub trait PublicKey: Key {
-    fn encrypt(&self, data: &[u8]) -> Vec<u8>;
-}
-
-pub trait PrivateKey: Key {
-    fn sign(&self, data: &[u8]) -> Vec<u8>;
-}
-
-type KeyPair = (Box<PublicKey>, Box<PrivateKey>);
 
 pub struct CryptoSystem {
     pub id: &'static str,
-    pub generate_key_pair: fn(bits: u32) -> KeyPair
+    pub generate_key_pair: fn(bits: Option<u32>) -> Box<KeyPair>,
+    pub import: fn(r: &mut Read) -> io::Result<Box<KeyPair>>,
+    pub read_public: fn(r: &mut Read) -> io::Result<Box<KeyPair>>
 }

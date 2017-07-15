@@ -2,7 +2,7 @@ use key::{Key, PublicKey, PrivateKey, KeyPair, CryptoSystem};
 use std::io::{Read, Write, Result};
 
 pub static RSA: CryptoSystem = CryptoSystem {
-    id: "ssh-rsa",
+    id: "rsa",
     generate_key_pair: generate_key_pair,
 };
 

@@ -126,11 +126,15 @@ pub trait WritePacketExt: WriteBytesExt {
 
     fn write_string(&mut self, s: &str) -> Result<()> {
         let bytes = s.as_bytes();
+        self.write_bytes(bytes)
+    }
+
+    fn write_bytes(&mut self, bytes: &[u8]) -> Result<()> {
         self.write_u32::<BigEndian>(bytes.len() as u32)?;
         self.write_all(bytes)
     }
 
-    fn write_bytes(&mut self, bytes: &[u8]) -> Result<()> {
+    fn write_raw_bytes(&mut self, bytes: &[u8]) -> Result<()> {
         self.write_all(bytes)
     }
 
@@ -140,7 +144,6 @@ pub trait WritePacketExt: WriteBytesExt {
 
     fn write_mpint(&mut self, value: BigInt) -> Result<()> {
         let bytes = value.to_signed_bytes_be();
-        self.write_u32::<BigEndian>(bytes.len() as u32)?;
         self.write_bytes(bytes.as_slice())
     }
 
