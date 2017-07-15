@@ -1,15 +1,15 @@
-use std::net::TcpListener;
 use std::io::{self, Write};
+use std::net::TcpListener;
+use std::thread;
 
-use session::{Session, SessionType};
+use connection::{Connection, ConnectionType};
 use packet::Packet;
 use public_key::KeyPair;
-use protocol;
 
 pub struct ServerConfig {
     pub host: String,
     pub port: u16,
-    pub key: Box<KeyPair>
+    pub key: Box<KeyPair>,
 }
 
 pub struct Server {
@@ -22,28 +22,32 @@ impl Server {
     }
 
     pub fn run(&self) -> io::Result<()> {
-        let listener = TcpListener::bind((&*self.config.host, self.config.port)).expect(&*format!(
+        let listener = TcpListener::bind(
+            (&*self.config.host, self.config.port),
+        ).expect(&*format!(
             "sshd: failed to bind to {}:{}",
             self.config.host,
             self.config.port
         ));
-        let (mut stream, addr) = listener.accept().expect(&*format!(
-            "sshd: failed to establish incoming connection"
-        ));
-
-        println!("Incoming connection from {}", addr);
-        protocol::send_identification(&mut stream)?;
-
-        let id = protocol::read_identification(&mut stream)?;
-        println!("{} identifies as {}", addr, id);
-
-        let mut session = Session::new(SessionType::Server, stream.try_clone().unwrap());
 
         loop {
-            let packet = Packet::read_from(&mut stream).unwrap();
-            println!("packet: {:?}", packet);
-            session.process(&packet);
+            let (mut stream, addr) = listener.accept().expect(&*format!(
+                "sshd: failed to establish incoming connection"
+            ));
+
+            println!("Incoming connection from {}", addr);
+
+            thread::spawn(move || {
+                let mut connection = Connection::new(
+                    ConnectionType::Server,
+                    stream.try_clone().unwrap(),
+                );
+
+                connection.run(&mut stream);
+            });
+
         }
+
         Ok(())
     }
 }
