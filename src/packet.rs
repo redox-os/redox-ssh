@@ -58,8 +58,8 @@ impl Packet {
         &mut self.payload
     }
 
-    pub fn with_writer(&mut self, f: &Fn(&mut Write) -> ()) {
-        f(&mut self.payload);
+    pub fn with_writer(&mut self, f: &Fn(&mut Write) -> Result<()>) -> Result<()> {
+        f(&mut self.payload)
     }
 
     pub fn reader<'a>(&'a self) -> BufReader<&'a [u8]> {
@@ -130,7 +130,7 @@ pub trait WritePacketExt: WriteBytesExt {
     }
 
     fn write_bytes(&mut self, bytes: &[u8]) -> Result<()> {
-        self.write_u32::<BigEndian>(bytes.len() as u32)?;
+        self.write_uint32(bytes.len() as u32)?;
         self.write_all(bytes)
     }
 
@@ -145,6 +145,10 @@ pub trait WritePacketExt: WriteBytesExt {
     fn write_mpint(&mut self, value: BigInt) -> Result<()> {
         let bytes = value.to_signed_bytes_be();
         self.write_bytes(bytes.as_slice())
+    }
+
+    fn write_uint32(&mut self, value: u32) -> Result<()> {
+        self.write_u32::<BigEndian>(value as u32)
     }
 
     fn write_list<T: ToString>(&mut self, list: &[T]) -> Result<()> {

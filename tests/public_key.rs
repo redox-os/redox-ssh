@@ -3,7 +3,7 @@ extern crate rand;
 
 use rand::Rng;
 use std::io::Cursor;
-use ssh::key::{self, CryptoSystem, KeyPair};
+use ssh::public_key::{self, CryptoSystem, KeyPair};
 
 fn test_export_import(keypair: &Box<KeyPair>) -> Box<KeyPair> {
     // Export the keypair to a vector and import it again
@@ -36,4 +36,4 @@ fn test_crypto_system(system: &CryptoSystem, key_size: Option<u32>) {
 }
 
 #[test]
-fn test_ed25519() { test_crypto_system(&key::ED25519, None); }
+fn test_ed25519() { test_crypto_system(&public_key::ED25519, None); }

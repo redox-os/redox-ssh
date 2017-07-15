@@ -91,23 +91,24 @@ impl<W: Write> Session<W> {
 
         let mut packet = Packet::new(MessageType::KexInit);
         packet.with_writer(&|w| {
-            w.write_raw_bytes(cookie.as_slice());
-            w.write_list(KEY_EXCHANGE);
-            w.write_list(HOST_KEY);
-            w.write_list(ENCRYPTION);
-            w.write_list(ENCRYPTION);
-            w.write_list(MAC);
-            w.write_list(MAC);
-            w.write_list(COMPRESSION);
-            w.write_list(COMPRESSION);
-            w.write_string("");
-            w.write_string("");
-            w.write_bool(false);
-            w.write_bytes(&[0, 0, 0, 0]);
+            w.write_raw_bytes(cookie.as_slice())?;
+            w.write_list(KEY_EXCHANGE)?;
+            w.write_list(HOST_KEY)?;
+            w.write_list(ENCRYPTION)?;
+            w.write_list(ENCRYPTION)?;
+            w.write_list(MAC)?;
+            w.write_list(MAC)?;
+            w.write_list(COMPRESSION)?;
+            w.write_list(COMPRESSION)?;
+            w.write_string("")?;
+            w.write_string("")?;
+            w.write_bool(false)?;
+            w.write_uint32(0)?;
+            Ok(())
         });
 
         self.state = SessionState::KeyExchange;
-        self.key_exchange = Some(Box::new(key_exchange::DhGroupSha1::new()));
+        self.key_exchange = Some(Box::new(key_exchange::Curve25519::new()));
         packet.write_to(&mut self.stream);
     }
 }

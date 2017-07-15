@@ -3,13 +3,14 @@ use std::fmt;
 
 /// Slice of implemented key exchange algorithms, ordered by preference
 pub static KEY_EXCHANGE: &[KeyExchangeAlgorithm] = &[
-    KeyExchangeAlgorithm::DH_GROUP_EXCHANGE_SHA1,
-//    KeyExchangeAlgorithm::CURVE25519_SHA256,
+    KeyExchangeAlgorithm::CURVE25519_SHA256,
+//  KeyExchangeAlgorithm::DH_GROUP_EXCHANGE_SHA1,
 ];
 
 /// Slice of implemented host key algorithms, ordered by preference
-pub static HOST_KEY: &[PublicKeyAlgorithm] = &[PublicKeyAlgorithm::SSH_RSA,
-      // PublicKeyAlgorithm::SSH_ED25519
+pub static HOST_KEY: &[PublicKeyAlgorithm] = &[
+    PublicKeyAlgorithm::SSH_ED25519,
+//  PublicKeyAlgorithm::SSH_RSA,
 ];
 
 /// Slice of implemented encryption algorithms, ordered by preference

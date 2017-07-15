@@ -3,20 +3,13 @@ use std::io::{self, Write};
 
 use session::{Session, SessionType};
 use packet::Packet;
+use public_key::KeyPair;
 use protocol;
 
 pub struct ServerConfig {
     pub host: String,
     pub port: u16,
-}
-
-impl Default for ServerConfig {
-    fn default() -> ServerConfig {
-        ServerConfig {
-            host: "0.0.0.0".to_owned(),
-            port: 22,
-        }
-    }
+    pub key: Box<KeyPair>
 }
 
 pub struct Server {

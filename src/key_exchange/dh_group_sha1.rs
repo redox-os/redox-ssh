@@ -54,8 +54,9 @@ impl KeyExchange for DhGroupSha1 {
 
                 let mut packet = Packet::new(MessageType::KeyExchange(DH_GEX_GROUP));
                 packet.with_writer(&|w| {
-                    w.write_mpint(g.clone());
-                    w.write_mpint(p.clone());
+                    w.write_mpint(g.clone())?;
+                    w.write_mpint(p.clone())?;
+                    Ok(())
                 });
 
                 self.g = Some(g);
@@ -71,9 +72,10 @@ impl KeyExchange for DhGroupSha1 {
 
                 let mut packet = Packet::new(MessageType::KeyExchange(DH_GEX_REPLY));
                 packet.with_writer(&|w| {
-                    w.write_string("HELLO WORLD");
-                    w.write_mpint(e.clone());
-                    w.write_string("HELLO WORLD");
+                    w.write_string("HELLO WORLD")?;
+                    w.write_mpint(e.clone())?;
+                    w.write_string("HELLO WORLD")?;
+                    Ok(())
                 });
 
                 self.e = Some(e);
