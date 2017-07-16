@@ -11,6 +11,10 @@ addons:
       - libcurl4-openssl-dev
       - libelf-dev
       - libdw-dev
+      - binutils-dev
+      - cmake
+    sources:
+      - kalakris-cmake
 env:
   global:
     - TRAVIS_CARGO_NIGHTLY_FEATURE=""
@@ -19,12 +23,13 @@ before_script:
     pip install 'travis-cargo<0.2' --user &&
     export PATH=$HOME/.local/bin:/usr/local/bin:$PATH
   - export PATH="$PATH:$HOME/.cargo/bin"
+  - cargo install cargo-travis
   - which rustfmt || cargo install rustfmt
 script:
   - cargo fmt -- --write-mode=diff
-  - travis-cargo build
-  - travis-cargo test
+  - cargo build
+  - cargo test
   - travis-cargo --only stable doc
 after_success:
   - travis-cargo --only stable doc-upload
-  - travis-cargo coveralls --no-sudo
+  - cargo coveralls
