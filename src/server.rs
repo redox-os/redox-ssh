@@ -1,6 +1,5 @@
 use std::io::{self, Write};
 use std::net::TcpListener;
-use std::thread;
 
 use connection::{Connection, ConnectionType};
 use packet::Packet;
@@ -37,15 +36,12 @@ impl Server {
 
             println!("Incoming connection from {}", addr);
 
-            thread::spawn(move || {
-                let mut connection = Connection::new(
-                    ConnectionType::Server,
-                    stream.try_clone().unwrap(),
-                );
+            let mut connection = Connection::new(
+                ConnectionType::Server,
+                stream.try_clone().unwrap(),
+            );
 
-                connection.run(&mut stream);
-            });
-
+            connection.run(&mut stream);
         }
 
         Ok(())
