@@ -109,11 +109,11 @@ pub trait ReadPacketExt: ReadBytesExt {
     }
 
     fn read_utf8(&mut self) -> Result<String> {
-        Ok(
-            str::from_utf8(self.read_string()?.as_slice())
-                .unwrap_or("")
-                .to_owned(),
-        )
+        str::from_utf8(self.read_string()?.as_slice())
+            .map(|s| s.to_owned())
+            .map_err(|_| {
+                io::Error::new(io::ErrorKind::InvalidData, "invalid utf-8")
+            })
     }
 
     fn read_bool(&mut self) -> Result<bool> {

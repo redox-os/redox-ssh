@@ -5,6 +5,7 @@ extern crate num_bigint;
 #[macro_use]
 extern crate log;
 
+mod error;
 mod algorithm;
 mod packet;
 mod message;

@@ -1,6 +1,8 @@
 use std::fmt;
 use std::str::FromStr;
 
+use error::{ConnectionError, ConnectionResult};
+
 /// Slice of implemented key exchange algorithms, ordered by preference
 pub static KEY_EXCHANGE: &[KeyExchangeAlgorithm] =
     &[
@@ -26,13 +28,16 @@ pub static COMPRESSION: &[CompressionAlgorithm] =
     &[CompressionAlgorithm::None, CompressionAlgorithm::Zlib];
 
 /// Find the best matching algorithm
-pub fn negotiate<A: PartialEq + Copy>(server: &[A], client: &[A]) -> Option<A> {
+pub fn negotiate<A: PartialEq + Copy>(
+    server: &[A],
+    client: &[A],
+) -> ConnectionResult<A> {
     for algorithm in client.iter() {
         if server.iter().any(|a| a == algorithm) {
-            return Some(*algorithm);
+            return Ok(*algorithm);
         }
     }
-    None
+    Err(ConnectionError::NegotiationError)
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]

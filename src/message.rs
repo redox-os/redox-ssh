@@ -1,5 +1,3 @@
-use std::fmt::Debug;
-
 #[derive(PartialEq, Clone, Copy, Debug)]
 pub enum MessageType {
     Disconnect,

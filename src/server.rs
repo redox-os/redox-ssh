@@ -1,8 +1,7 @@
-use std::io::{self, Write};
+use std::io;
 use std::net::TcpListener;
 
 use connection::{Connection, ConnectionType};
-use packet::Packet;
 use public_key::KeyPair;
 
 pub struct ServerConfig {
@@ -41,7 +40,10 @@ impl Server {
                 stream.try_clone().unwrap(),
             );
 
-            connection.run(&mut stream);
+            let result = connection.run(&mut stream);
+            if let Some(error) = result.err() {
+                println!("sshd: {}", error)
+            }
         }
 
         Ok(())
