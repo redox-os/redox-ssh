@@ -42,11 +42,12 @@ impl<W: Write> Connection<W> {
         }
     }
 
-    pub fn run(&mut self, mut stream: &mut Read) -> ConnectionResult<()> {
+    pub fn run(&mut self, stream: &mut Read) -> ConnectionResult<()> {
         self.stream.write(self.my_id.as_bytes())?;
         self.stream.flush()?;
 
-        self.peer_id = Some(self.read_id(stream)?);
+        let mut stream = BufReader::new(stream);
+        self.peer_id = Some(self.read_id(&mut stream)?);
 
         if let Some(ref peer_id) = self.peer_id {
             println!("Identifies as {:?}", peer_id);
@@ -59,11 +60,10 @@ impl<W: Write> Connection<W> {
         }
     }
 
-    fn read_id(&mut self, stream: &mut Read) -> io::Result<String> {
+    fn read_id(&mut self, mut reader: &mut BufRead) -> io::Result<String> {
         // The identification string has a maximum length of 255 bytes
         // TODO: Make sure to stop reading if the client sends too much
 
-        let mut reader = BufReader::new(stream);
         let mut id = String::new();
 
         while !id.starts_with("SSH-") {
