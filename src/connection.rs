@@ -44,6 +44,8 @@ impl<W: Write> Connection<W> {
 
     pub fn run(&mut self, mut stream: &mut Read) -> io::Result<()> {
         self.stream.write(self.my_id.as_bytes())?;
+        self.stream.flush()?;
+
         self.peer_id = Some(self.read_id(stream)?);
 
         if let Some(ref peer_id) = self.peer_id {

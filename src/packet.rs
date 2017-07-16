@@ -52,6 +52,7 @@ impl Packet {
         stream.write_u8(padding_len as u8)?;
         stream.write(&self.payload)?;
         stream.write(&[0u8; 255][..padding_len])?;
+        stream.flush()?;
 
         Ok(())
     }
