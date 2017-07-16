@@ -1,8 +1,9 @@
 extern crate ssh;
 extern crate rand;
 
-use rand::Rng;
 use std::io::Cursor;
+
+use rand::Rng;
 use ssh::public_key::{self, CryptoSystem, KeyPair};
 
 fn test_export_import(keypair: &Box<KeyPair>) -> Box<KeyPair> {
@@ -20,7 +21,7 @@ fn test_crypto_system(system: &CryptoSystem, key_size: Option<u32>) {
     let keypair2 = test_export_import(&keypair);
 
     // Generate a random message
-    let mut buffer = [0;4096];
+    let mut buffer = [0; 4096];
     let mut rng = rand::thread_rng();
     rng.fill_bytes(&mut buffer);
 
@@ -36,4 +37,6 @@ fn test_crypto_system(system: &CryptoSystem, key_size: Option<u32>) {
 }
 
 #[test]
-fn test_ed25519() { test_crypto_system(&public_key::ED25519, None); }
+fn test_ed25519() {
+    test_crypto_system(&public_key::ED25519, None);
+}

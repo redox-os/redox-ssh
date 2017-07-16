@@ -32,14 +32,15 @@ impl DhGroupSha1 {
         DhGroupSha1 {
             g: None,
             p: None,
-            e: None
+            e: None,
         }
     }
 }
 
 impl KeyExchange for DhGroupSha1 {
     fn process(&mut self, packet: &Packet) -> KeyExchangeResult {
-        match packet.msg_type() {
+        match packet.msg_type()
+        {
             MessageType::KeyExchange(DH_GEX_REQUEST) => {
                 let mut reader = packet.reader();
                 let min = reader.read_uint32().unwrap();
@@ -52,7 +53,8 @@ impl KeyExchange for DhGroupSha1 {
                 let g = rng.gen_biguint(opt as usize).to_bigint().unwrap();
                 let p = rng.gen_biguint(opt as usize).to_bigint().unwrap();
 
-                let mut packet = Packet::new(MessageType::KeyExchange(DH_GEX_GROUP));
+                let mut packet =
+                    Packet::new(MessageType::KeyExchange(DH_GEX_GROUP));
                 packet.with_writer(&|w| {
                     w.write_mpint(g.clone())?;
                     w.write_mpint(p.clone())?;
@@ -63,14 +65,15 @@ impl KeyExchange for DhGroupSha1 {
                 self.p = Some(p);
 
                 KeyExchangeResult::Ok(Some(packet))
-            },
+            }
             MessageType::KeyExchange(DH_GEX_INIT) => {
                 let mut reader = packet.reader();
                 let e = reader.read_mpint().unwrap();
 
                 println!("Received e: {:?}", e);
 
-                let mut packet = Packet::new(MessageType::KeyExchange(DH_GEX_REPLY));
+                let mut packet =
+                    Packet::new(MessageType::KeyExchange(DH_GEX_REPLY));
                 packet.with_writer(&|w| {
                     w.write_string("HELLO WORLD")?;
                     w.write_mpint(e.clone())?;
@@ -81,7 +84,7 @@ impl KeyExchange for DhGroupSha1 {
                 self.e = Some(e);
 
                 KeyExchangeResult::Ok(Some(packet))
-            },
+            }
             _ => {
                 debug!("Unhandled key exchange packet: {:?}", packet);
                 KeyExchangeResult::Error(None)

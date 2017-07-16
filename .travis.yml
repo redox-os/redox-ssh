@@ -1,5 +1,27 @@
+sudo: false
 language: rust
 rust:
   - stable
   - beta
   - nightly
+cache: cargo
+addons:
+  apt:
+    packages:
+      - libcurl4-openssl-dev
+      - libelf-dev
+      - libdw-dev
+before_script:
+  - |
+    pip install 'travis-cargo<0.2' --user &&
+    export PATH=$HOME/.local/bin:/usr/local/bin:$PATH
+  - export PATH="$PATH:$HOME/.cargo/bin"
+  - which rustfmt || cargo install rustfmt
+script:
+  - cargo fmt -- --write-mode=diff
+  - travis-cargo build
+  - travis-cargo test
+  - travis-cargo --only stable doc
+after_success:
+  - travis-cargo --only stable doc-upload
+  - travis-cargo coveralls --no-sudo --verify

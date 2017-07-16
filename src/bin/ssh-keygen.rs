@@ -1,6 +1,6 @@
 extern crate ssh;
-use std::io::prelude::*;
 use std::fs::File;
+use std::io::prelude::*;
 
 use ssh::public_key;
 

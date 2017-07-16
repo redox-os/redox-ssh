@@ -1,9 +1,10 @@
 use std::io::{self, Read, Write};
 
-//mod rsa;
+// mod rsa;
 mod ed25519;
 
-//pub use self::rsa::RSA;
+// pub use self::rsa::RSA;
+
 pub use self::ed25519::ED25519;
 
 pub trait KeyPair {
@@ -22,5 +23,5 @@ pub struct CryptoSystem {
     pub id: &'static str,
     pub generate_key_pair: fn(bits: Option<u32>) -> Box<KeyPair>,
     pub import: fn(r: &mut Read) -> io::Result<Box<KeyPair>>,
-    pub read_public: fn(r: &mut Read) -> io::Result<Box<KeyPair>>
+    pub read_public: fn(r: &mut Read) -> io::Result<Box<KeyPair>>,
 }

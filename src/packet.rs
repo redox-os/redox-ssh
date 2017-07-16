@@ -1,13 +1,15 @@
 use std::fmt;
+use std::io::{self, BufReader, Read, Result, Write};
 use std::str::{self, FromStr};
 use std::string::ToString;
-use std::io::{self, BufReader, Write, Read, Result};
+
+use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
+
 use message::MessageType;
-use byteorder::{ReadBytesExt, WriteBytesExt, BigEndian};
 use num_bigint::BigInt;
 
 pub struct Packet {
-    payload: Vec<u8>
+    payload: Vec<u8>,
 }
 
 impl Packet {
@@ -30,14 +32,14 @@ impl Packet {
 
         let mut payload = Vec::with_capacity(payload_len);
         let mut padding = Vec::with_capacity(padding_len);
-//        let mut mac = Vec::with_capacity(mac_len);
+        // let mut mac = Vec::with_capacity(mac_len);
 
         stream.take(payload_len as u64).read_to_end(&mut payload)?;
         stream.take(padding_len as u64).read_to_end(&mut padding)?;
 
-//        if mac_len > 0 {
-//            stream.take(mac_len as u64).read_to_end(&mut mac);
-//        }
+        // if mac_len > 0 {
+        //     stream.take(mac_len as u64).read_to_end(&mut mac);
+        // }
 
         Ok(Packet { payload: payload })
     }
@@ -49,7 +51,7 @@ impl Packet {
         stream.write_u32::<BigEndian>(packet_len as u32)?;
         stream.write_u8(padding_len as u8)?;
         stream.write(&self.payload)?;
-        stream.write(&[0u8;255][..padding_len])?;
+        stream.write(&[0u8; 255][..padding_len])?;
 
         Ok(())
     }
@@ -58,7 +60,10 @@ impl Packet {
         &mut self.payload
     }
 
-    pub fn with_writer(&mut self, f: &Fn(&mut Write) -> Result<()>) -> Result<()> {
+    pub fn with_writer(
+        &mut self,
+        f: &Fn(&mut Write) -> Result<()>,
+    ) -> Result<()> {
         f(&mut self.payload)
     }
 
@@ -71,8 +76,12 @@ impl Packet {
         let padding_len = 8 - ((self.payload.len() + 5) % 8);
 
         // The padding has to be at least 4 bytes long
-        if padding_len < 4 { padding_len + 8 }
-        else { padding_len }
+        if padding_len < 4 {
+            padding_len + 8
+        }
+        else {
+            padding_len
+        }
     }
 }
 
@@ -99,7 +108,11 @@ pub trait ReadPacketExt: ReadBytesExt {
     }
 
     fn read_utf8(&mut self) -> Result<String> {
-       Ok(str::from_utf8(self.read_string()?.as_slice()).unwrap_or("").to_owned())
+        Ok(
+            str::from_utf8(self.read_string()?.as_slice())
+                .unwrap_or("")
+                .to_owned(),
+        )
     }
 
     fn read_bool(&mut self) -> Result<bool> {
@@ -108,7 +121,12 @@ pub trait ReadPacketExt: ReadBytesExt {
 
     fn read_enum_list<T: FromStr>(&mut self) -> Result<Vec<T>> {
         let string = self.read_utf8()?;
-        Ok(string.split(",").filter_map(|l| T::from_str(&l).ok()).collect())
+        Ok(
+            string
+                .split(",")
+                .filter_map(|l| T::from_str(&l).ok())
+                .collect(),
+        )
     }
 
     fn read_name_list(&mut self) -> Result<Vec<String>> {
@@ -161,7 +179,7 @@ pub trait WritePacketExt: WriteBytesExt {
             }
             string += &*item.to_string();
         }
-       self.write_string(&*string)
+        self.write_string(&*string)
     }
 }
 
@@ -169,6 +187,11 @@ impl<R: WriteBytesExt + ?Sized> WritePacketExt for R {}
 
 impl fmt::Debug for Packet {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Packet({:?}, {} bytes)", self.msg_type(), self.payload.len())
+        write!(
+            f,
+            "Packet({:?}, {} bytes)",
+            self.msg_type(),
+            self.payload.len()
+        )
     }
 }

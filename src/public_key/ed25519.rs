@@ -1,8 +1,9 @@
-use public_key::{KeyPair, CryptoSystem};
 use std::io::{self, Read, Write};
 use std::io::ErrorKind::InvalidData;
-use rand::{self, Rng};
+
 use crypto::ed25519;
+use public_key::{CryptoSystem, KeyPair};
+use rand::{self, Rng};
 
 pub static ED25519: CryptoSystem = CryptoSystem {
     id: "ed25519",
@@ -90,7 +91,8 @@ impl KeyPair for Ed25519KeyPair {
         if let Some(private_key) = self.private {
             let signature = ed25519::signature(data, &private_key);
             Ok(signature.to_vec())
-        } else {
+        }
+        else {
             Err(())
         }
     }

@@ -9,7 +9,7 @@ use packet::Packet;
 pub enum KeyExchangeResult {
     Ok(Option<Packet>),
     Done(Option<Packet>),
-    Error(Option<Packet>)
+    Error(Option<Packet>),
 }
 
 pub trait KeyExchange {
