@@ -24,9 +24,13 @@ impl Packet {
     pub fn read_from<R: io::Read>(stream: &mut R) -> Result<Packet> {
         let mac_len = 0;
 
+        trace!("Waiting for incoming packet...");
         let packet_len = stream.read_u32::<BigEndian>()? as usize;
+        trace!("Read incoming packet ({} bytes)", packet_len);
+
         let padding_len = stream.read_u8()? as usize;
         let payload_len = packet_len - padding_len - 1;
+        trace!("Padding: {} bytes", padding_len);
 
         // TODO: Prevent packets that are too large
 
@@ -34,7 +38,9 @@ impl Packet {
         let mut padding = Vec::with_capacity(padding_len);
         // let mut mac = Vec::with_capacity(mac_len);
 
+        trace!("Reading packet...");
         stream.take(payload_len as u64).read_to_end(&mut payload)?;
+        trace!("Reading payload...");
         stream.take(padding_len as u64).read_to_end(&mut padding)?;
 
         // if mac_len > 0 {

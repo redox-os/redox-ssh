@@ -1,4 +1,5 @@
 extern crate ssh;
+extern crate log;
 
 use std::env;
 use std::fs::File;
@@ -6,11 +7,28 @@ use std::io::{self, Write};
 use std::process;
 use std::str::FromStr;
 
+use log::{LogLevelFilter, LogMetadata, LogRecord};
+
 use ssh::{Server, ServerConfig};
 use ssh::public_key::ED25519;
 
+struct StdErrLogger;
+
+impl log::Log for StdErrLogger {
+    fn enabled(&self, _: &LogMetadata) -> bool {
+        true
+    }
+
+    fn log(&self, record: &LogRecord) {
+        if self.enabled(record.metadata()) {
+            writeln!(io::stderr(), "{} - {}", record.level(), record.args())
+                .unwrap();
+        }
+    }
+}
+
 pub fn main() {
-    let mut quiet = false;
+    let mut verbose = false;
 
     let key_pair = File::open("server.key").and_then(
         |mut f| (ED25519.import)(&mut f),
@@ -32,7 +50,7 @@ pub fn main() {
     while let Some(arg) = args.next() {
         match arg.as_ref()
         {
-            "-q" => quiet = true,
+            "-v" => verbose = true,
             "-p" => {
                 config.port =
                     u16::from_str(
@@ -41,6 +59,13 @@ pub fn main() {
             }
             _ => (),
         }
+    }
+
+    if verbose {
+        log::set_logger(|max_log_level| {
+            max_log_level.set(LogLevelFilter::Trace);
+            Box::new(StdErrLogger)
+        }).unwrap();
     }
 
     let server = Server::with_config(config);

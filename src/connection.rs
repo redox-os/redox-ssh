@@ -55,7 +55,7 @@ impl<W: Write> Connection<W> {
         loop {
             let packet = Packet::read_from(&mut stream)?;
             println!("packet: {:?}", packet);
-            self.process(&packet);
+            self.process(&packet)?;
         }
     }
 
