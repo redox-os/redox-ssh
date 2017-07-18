@@ -12,7 +12,7 @@ const ECDH_KEX_INIT: u8 = 30;
 const ECDH_KEX_REPLY: u8 = 31;
 
 pub struct Curve25519 {
-    shared_secret: Option<[u8; 32]>,
+    shared_secret: Option<Vec<u8>>,
     exchange_hash: Option<Vec<u8>>,
 }
 
@@ -65,7 +65,6 @@ impl KeyExchange for Curve25519 {
                     key
                 };
 
-                println!("Received qc: {:?}", client_public);
                 let mut packet =
                     Packet::new(MessageType::KeyExchange(ECDH_KEX_REPLY));
 
@@ -82,8 +81,14 @@ impl KeyExchange for Curve25519 {
                 };
 
                 let server_public = curve25519::curve25519_base(&server_secret);
-                let shared_secret =
-                    curve25519::curve25519(&server_secret, &client_public);
+                let shared_secret = {
+                    let mut buf = Vec::new();
+                    buf.write_mpint(BigInt::from_bytes_be(
+                        Sign::Plus,
+                        &curve25519::curve25519(&server_secret, &client_public),
+                    ));
+                    buf
+                };
 
                 let hash_data = {
                     let mut buf = Vec::new();
@@ -104,9 +109,7 @@ impl KeyExchange for Curve25519 {
                         buf.write_bytes(item);
                     }
 
-                    buf.write_mpint(
-                        BigInt::from_bytes_be(Sign::Plus, &shared_secret),
-                    );
+                    buf.write_raw_bytes(&shared_secret);
 
                     buf
                 };
@@ -114,10 +117,6 @@ impl KeyExchange for Curve25519 {
                 // Calculate hash
                 let hash = self.hash(&[hash_data.as_slice()]);
                 let signature = config.as_ref().key.sign(&hash).unwrap();
-
-                println!("Hash: {:?}", hash);
-                println!("Public Key: {:?}", public_key);
-                println!("Signature: {:?}", signature);
 
                 packet
                     .with_writer(&|w| {

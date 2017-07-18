@@ -12,6 +12,7 @@ mod message;
 mod connection;
 mod key_exchange;
 mod encryption;
+mod mac;
 
 pub mod public_key;
 pub mod server;

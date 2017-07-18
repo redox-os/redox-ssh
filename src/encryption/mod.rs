@@ -27,8 +27,11 @@ impl<'a> Decryptor<'a> {
 impl<'a> Read for Decryptor<'a> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let mut tmp = vec![0; buf.len()];
-        self.stream.read(tmp.as_mut_slice())?;
-        self.encryption.decrypt(tmp.as_slice(), buf);
-        Ok(buf.len())
+        let count = self.stream.read(tmp.as_mut_slice())?;
+        self.encryption.decrypt(
+            &tmp.as_slice()[0..count],
+            &mut buf[0..count],
+        );
+        Ok(count)
     }
 }

@@ -21,7 +21,7 @@ pub static ENCRYPTION: &[EncryptionAlgorithm] =
     &[EncryptionAlgorithm::AES256_CTR];
 
 /// Slice of implemented MAC algorithms, ordered by preference
-pub static MAC: &[MacAlgorithm] = &[MacAlgorithm::HMAC_SHA2_512];
+pub static MAC: &[MacAlgorithm] = &[MacAlgorithm::HMAC_SHA2_256];
 
 /// Slice of implemented compression algorithms, ordered by preference
 pub static COMPRESSION: &[CompressionAlgorithm] =

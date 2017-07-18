@@ -5,6 +5,7 @@ use std::sync::Arc;
 use encryption::{AesCtr, Decryptor, Encryption};
 use error::{ConnectionError, ConnectionResult};
 use key_exchange::{self, KexResult, KeyExchange};
+use mac::{Hmac, MacAlgorithm};
 use message::MessageType;
 use packet::{Packet, ReadPacketExt, WritePacketExt};
 use server::ServerConfig;
@@ -38,6 +39,8 @@ pub struct Connection {
     stream: Box<Write>,
     session_id: Option<Vec<u8>>,
     encryption: Option<(Box<Encryption>, Box<Encryption>)>,
+    mac: Option<(Box<MacAlgorithm>, Box<MacAlgorithm>)>,
+    seq: (u32, u32),
 }
 
 impl<'a> Connection {
@@ -50,6 +53,8 @@ impl<'a> Connection {
             stream: Box::new(stream),
             session_id: None,
             encryption: None,
+            mac: None,
+            seq: (0, 0),
         }
     }
 
@@ -61,20 +66,58 @@ impl<'a> Connection {
 
         loop {
             let packet = if let Some((ref mut c2s, _)) = self.encryption {
-                println!("decrypting!!!");
                 let mut decryptor = Decryptor::new(&mut **c2s, &mut reader);
                 Packet::read_from(&mut decryptor)?
             }
             else {
                 Packet::read_from(&mut reader)?
             };
-            trace!("Packet received: {:?}", packet);
+
+            if let Some((ref mut mac, _)) = self.mac {
+                let mut sig = vec![0; mac.size()];
+                reader.read_exact(&mut sig)?;
+
+                let mut sig_cmp = vec![0; mac.size()];
+                mac.sign(packet.data(), self.seq.0, sig_cmp.as_mut_slice());
+
+                if sig != sig_cmp {
+                    return Err(ConnectionError::IntegrityError);
+                }
+            }
+
+            trace!("Packet {} received: {:?}", self.seq.0, packet);
             self.process(packet)?;
+
+            self.seq.0 += 1;
         }
     }
 
-    pub fn send(&mut self, packet: &Packet) -> io::Result<()> {
-        packet.write_to(&mut self.stream)
+    pub fn send(&mut self, packet: Packet) -> io::Result<()> {
+        trace!("Sending packet {}: {:?}", self.seq.1, packet);
+
+        let packet = packet.to_raw()?;
+
+        if let Some((_, ref mut s2c)) = self.encryption {
+
+            let mut encrypted = vec![0; packet.data().len()];
+            s2c.encrypt(packet.data(), encrypted.as_mut_slice());
+
+            // Sending encrypted packet
+            self.stream.write_all(encrypted.as_slice())?;
+        }
+        else {
+            packet.write_to(&mut self.stream)?;
+        }
+
+        self.seq.1 += 1;
+
+        if let Some((_, ref mut mac)) = self.mac {
+            let mut sig = vec![0; mac.size()];
+            mac.sign(packet.data(), self.seq.1, sig.as_mut_slice());
+            self.stream.write_all(sig.as_slice())?;
+        }
+
+        Ok(())
     }
 
     fn send_id(&mut self) -> io::Result<()> {
@@ -134,18 +177,18 @@ impl<'a> Connection {
         match packet.msg_type()
         {
             MessageType::KexInit => {
-                println!("Starting Key Exchange!");
+                debug!("Starting key exchange");
                 self.kex_init(packet)
             }
             MessageType::NewKeys => {
-                println!("Switching to new Keys");
+                debug!("Switching to new keys");
 
                 let iv_c2s = self.generate_key(b"A", 256)?;
                 let iv_s2c = self.generate_key(b"B", 256)?;
                 let enc_c2s = self.generate_key(b"C", 256)?;
                 let enc_s2c = self.generate_key(b"D", 256)?;
-                let int_c2s = self.generate_key(b"E", 256)?;
-                let int_s2c = self.generate_key(b"F", 256)?;
+                let mac_c2s = self.generate_key(b"E", 256)?;
+                let mac_s2c = self.generate_key(b"F", 256)?;
 
                 self.encryption =
                     Some((
@@ -157,6 +200,29 @@ impl<'a> Connection {
                         ),
                     ));
 
+                self.mac = Some((
+                    Box::new(Hmac::new(mac_c2s.as_slice())),
+                    Box::new(Hmac::new(mac_s2c.as_slice())),
+                ));
+
+                Ok(())
+            }
+            MessageType::ServiceRequest => {
+                let mut reader = packet.reader();
+                let name = reader.read_string()?;
+
+                trace!(
+                    "{:?}",
+                    ::std::str::from_utf8(&name.as_slice()).unwrap()
+                );
+
+                let mut res = Packet::new(MessageType::ServiceAccept);
+                res.with_writer(&|w| {
+                    w.write_bytes(name.as_slice())?;
+                    Ok(())
+                })?;
+
+                self.send(res)?;
                 Ok(())
             }
             MessageType::KeyExchange(_) => {
@@ -168,7 +234,7 @@ impl<'a> Connection {
                 {
                     KexResult::Done(packet) => {
                         self.state = ConnectionState::Established;
-                        self.send(&packet)?;
+                        self.send(packet)?;
 
                         if self.session_id.is_none() {
                             self.session_id =
@@ -176,11 +242,11 @@ impl<'a> Connection {
                         }
 
                         let packet = Packet::new(MessageType::NewKeys);
-                        self.send(&packet)?;
+                        self.send(packet)?;
                         Ok(())
                     }
                     KexResult::Ok(packet) => {
-                        self.send(&packet)?;
+                        self.send(packet)?;
                         Ok(())
                     }
                     KexResult::Error => Err(ConnectionError::KeyExchangeError),
@@ -190,8 +256,8 @@ impl<'a> Connection {
                 Ok(())
             }
             _ => {
-                println!("Unhandled packet: {:?}", packet);
-                Err(ConnectionError::KeyExchangeError)
+                error!("Unhandled packet: {:?}", packet);
+                Err(ConnectionError::ProtocolError)
             }
         }
     }
@@ -220,11 +286,11 @@ impl<'a> Connection {
             let mac_algo = negotiate(MAC, mac_algos_s2c.as_slice())?;
             let comp_algo = negotiate(COMPRESSION, comp_algos_s2c.as_slice())?;
 
-            println!("Negotiated Kex Algorithm: {:?}", kex_algo);
-            println!("Negotiated Host Key Algorithm: {:?}", srv_host_key_algo);
-            println!("Negotiated Encryption Algorithm: {:?}", enc_algo);
-            println!("Negotiated Mac Algorithm: {:?}", mac_algo);
-            println!("Negotiated Comp Algorithm: {:?}", comp_algo);
+            debug!("Negotiated Kex Algorithm: {:?}", kex_algo);
+            debug!("Negotiated Host Key Algorithm: {:?}", srv_host_key_algo);
+            debug!("Negotiated Encryption Algorithm: {:?}", enc_algo);
+            debug!("Negotiated Mac Algorithm: {:?}", mac_algo);
+            debug!("Negotiated Comp Algorithm: {:?}", comp_algo);
         }
 
         // Save payload for hash generation

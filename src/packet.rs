@@ -8,85 +8,137 @@ use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use message::MessageType;
 use num_bigint::BigInt;
 
-pub struct Packet {
-    payload: Vec<u8>,
+pub enum Packet {
+    Raw(Vec<u8>, usize),
+    Payload(Vec<u8>),
 }
 
 impl Packet {
     pub fn new(msg_type: MessageType) -> Packet {
-        Packet { payload: (&[msg_type.into()]).to_vec() }
+        Packet::Payload([msg_type.into()].to_vec())
     }
 
     pub fn msg_type(&self) -> MessageType {
-        self.payload[0].into()
-    }
-
-    pub fn payload(self) -> Vec<u8> {
-        self.payload
+        match self
+        {
+            &Packet::Raw(ref data, _) => data[5],
+            &Packet::Payload(ref data) => data[0],
+        }.into()
     }
 
     pub fn read_from<R: io::Read>(stream: &mut R) -> Result<Packet> {
-        let mac_len = 0;
-
-        trace!("Waiting for incoming packet...");
-        let packet_len = stream.read_u32::<BigEndian>()? as usize;
-        trace!("Read incoming packet ({} bytes)", packet_len);
-
-        let padding_len = stream.read_u8()? as usize;
-        let payload_len = packet_len - padding_len - 1;
-        trace!("Padding: {} bytes", padding_len);
+        let packet_len = stream.read_uint32()? as usize;
+        trace!("Reading incoming packet ({} bytes)", packet_len);
 
         // TODO: Prevent packets that are too large
 
-        let mut payload = Vec::with_capacity(payload_len);
-        let mut padding = Vec::with_capacity(padding_len);
-        // let mut mac = Vec::with_capacity(mac_len);
+        let mut raw = Vec::with_capacity(packet_len + 4);
+        raw.write_uint32(packet_len as u32)?;
 
-        trace!("Reading packet...");
-        stream.take(payload_len as u64).read_to_end(&mut payload)?;
-        trace!("Reading payload...");
-        stream.take(padding_len as u64).read_to_end(&mut padding)?;
+        let count = stream.take(packet_len as u64).read_to_end(&mut raw)?;
 
-        // if mac_len > 0 {
-        //     stream.take(mac_len as u64).read_to_end(&mut mac);
-        // }
-
-        Ok(Packet { payload: payload })
+        if count == packet_len {
+            let padding_len = raw[4] as usize;
+            let payload_len = packet_len - padding_len - 1;
+            // TODO: Verify packet size (mod 8)
+            Ok(Packet::Raw(raw, payload_len))
+        }
+        else {
+            Err(io::Error::new(io::ErrorKind::BrokenPipe, "broken stream"))
+        }
     }
 
     pub fn write_to<W: io::Write>(&self, stream: &mut W) -> Result<()> {
-        let padding_len = self.padding_len();
-        let packet_len = self.payload.len() + padding_len + 1;
+        match self
+        {
+            &Packet::Raw(ref data, _) => {
+                stream.write_all(data)?;
+                stream.flush()
+            }
+            &Packet::Payload(ref payload) => {
+                let padding_len = self.padding_len();
+                let packet_len = payload.len() + padding_len + 1;
 
-        stream.write_u32::<BigEndian>(packet_len as u32)?;
-        stream.write_u8(padding_len as u8)?;
-        stream.write(&self.payload)?;
-        stream.write(&[0u8; 255][..padding_len])?;
-        stream.flush()?;
+                stream.write_u32::<BigEndian>(packet_len as u32)?;
+                stream.write_u8(padding_len as u8)?;
+                stream.write_all(&payload)?;
+                stream.write_all(&[0u8; 255][..padding_len])?;
 
-        Ok(())
+                stream.flush()
+            }
+        }
+    }
+
+    pub fn payload(self) -> Vec<u8> {
+        match self
+        {
+            Packet::Raw(data, payload_len) => data[5..payload_len + 5].to_vec(),
+            Packet::Payload(payload) => payload,
+        }
+    }
+
+    pub fn data<'a>(&'a self) -> &'a [u8] {
+        match self
+        {
+            &Packet::Raw(ref data, _) => &data,
+            &Packet::Payload(ref payload) => &payload,
+        }
+    }
+
+    pub fn to_raw(self) -> Result<Packet> {
+        match self
+        {
+            Packet::Raw(_, _) => Ok(self),
+            Packet::Payload(ref payload) => {
+                let mut buf = Vec::with_capacity(payload.len());
+                self.write_to(&mut buf)?;
+                Ok(Packet::Raw(buf, payload.len()))
+            }
+        }
     }
 
     pub fn writer<'a>(&'a mut self) -> &'a mut Write {
-        &mut self.payload
+        match self
+        {
+            &mut Packet::Raw(ref mut data, _) => data,
+            &mut Packet::Payload(ref mut payload) => payload,
+        }
     }
 
     pub fn with_writer(&mut self, f: &Fn(&mut Write) -> Result<()>)
         -> Result<()> {
-        f(&mut self.payload)
+        f(self.writer())
     }
 
     pub fn reader<'a>(&'a self) -> BufReader<&'a [u8]> {
-        BufReader::new(&self.payload.as_slice()[1..])
+        match self
+        {
+            &Packet::Raw(ref data, payload_len) => {
+                BufReader::new(&data.as_slice()[6..payload_len + 5])
+            }
+            &Packet::Payload(ref payload) => {
+                BufReader::new(&payload.as_slice()[1..])
+            }
+        }
+    }
+
+    pub fn payload_len(&self) -> usize {
+        match self
+        {
+            &Packet::Raw(_, payload_len) => payload_len,
+            &Packet::Payload(ref payload) => payload.len(),
+        }
     }
 
     pub fn padding_len(&self) -> usize {
+        let align = 32;
+
         // Calculate the padding to reach a multiple of 8 bytes
-        let padding_len = 8 - ((self.payload.len() + 5) % 8);
+        let padding_len = align - ((self.payload_len() + 5) % align);
 
         // The padding has to be at least 4 bytes long
         if padding_len < 4 {
-            padding_len + 8
+            padding_len + align
         }
         else {
             padding_len
@@ -200,7 +252,7 @@ impl fmt::Debug for Packet {
             f,
             "Packet({:?}, {} bytes)",
             self.msg_type(),
-            self.payload.len()
+            self.payload_len()
         )
     }
 }

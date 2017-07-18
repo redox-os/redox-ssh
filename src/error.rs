@@ -12,6 +12,7 @@ pub enum ConnectionError {
     NegotiationError,
     KeyExchangeError,
     KeyGenerationError,
+    IntegrityError,
 }
 
 impl fmt::Display for ConnectionError {
@@ -30,6 +31,7 @@ impl Error for ConnectionError {
             &NegotiationError => "negotiation error",
             &KeyExchangeError => "key exchange error",
             &KeyGenerationError => "key generation error",
+            &IntegrityError => "integrity error",
         }
     }
 }

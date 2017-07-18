@@ -6,17 +6,19 @@ A ssh client and server written entirely on rust, primarily targeted at [Redox O
 
 Currently implemented features, ordered by priority:
 
-  - [ ] SSH Server
+  - [x] SSH Server
   - [ ] SSH Client
-  - [ ] Key Exchange algorithms
+  - Key Exchange algorithms
     - [ ] `diffie-hellman-group-exchange-sha1`
     - [x] `curve25519-sha256`
-  - [ ] Public Key algorithms
+  - Public Key algorithms
     - [ ] `ssh-rsa`
     - [x] `ssh-ed25519`
-  - [ ] Encryption algorithms
-    - [ ] `aes256-ctr`
+  - Encryption algorithms
+    - [x] `aes256-ctr`
     - [ ] `aes256-gcm`
+  - MAC algorithms
+    - [x] `hmac-sha2-256`
   - [ ] Port forwarding
   - [ ] SCP File Transfers
 
