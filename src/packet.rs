@@ -71,10 +71,8 @@ impl Packet {
         &mut self.payload
     }
 
-    pub fn with_writer(
-        &mut self,
-        f: &Fn(&mut Write) -> Result<()>,
-    ) -> Result<()> {
+    pub fn with_writer(&mut self, f: &Fn(&mut Write) -> Result<()>)
+        -> Result<()> {
         f(&mut self.payload)
     }
 

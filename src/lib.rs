@@ -11,6 +11,7 @@ mod packet;
 mod message;
 mod connection;
 mod key_exchange;
+mod encryption;
 
 pub mod public_key;
 pub mod server;

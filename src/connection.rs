@@ -1,6 +1,8 @@
+use std::borrow::BorrowMut;
 use std::io::{self, BufRead, BufReader, Read, Write};
 use std::sync::Arc;
 
+use encryption::{AesCtr, Decryptor, Encryption};
 use error::{ConnectionError, ConnectionResult};
 use key_exchange::{self, KexResult, KeyExchange};
 use message::MessageType;
@@ -35,6 +37,7 @@ pub struct Connection {
     key_exchange: Option<Box<KeyExchange>>,
     stream: Box<Write>,
     session_id: Option<Vec<u8>>,
+    encryption: Option<(Box<Encryption>, Box<Encryption>)>,
 }
 
 impl<'a> Connection {
@@ -46,6 +49,7 @@ impl<'a> Connection {
             key_exchange: None,
             stream: Box::new(stream),
             session_id: None,
+            encryption: None,
         }
     }
 
@@ -56,7 +60,14 @@ impl<'a> Connection {
         self.read_id(&mut reader)?;
 
         loop {
-            let packet = Packet::read_from(&mut reader)?;
+            let packet = if let Some((ref mut c2s, _)) = self.encryption {
+                println!("decrypting!!!");
+                let mut decryptor = Decryptor::new(&mut **c2s, &mut reader);
+                Packet::read_from(&mut decryptor)?
+            }
+            else {
+                Packet::read_from(&mut reader)?
+            };
             trace!("Packet received: {:?}", packet);
             self.process(packet)?;
         }
@@ -96,11 +107,8 @@ impl<'a> Connection {
         Ok(())
     }
 
-    fn generate_key(
-        &mut self,
-        id: &[u8],
-        len: usize,
-    ) -> ConnectionResult<Vec<u8>> {
+    fn generate_key(&mut self, id: &[u8], len: usize)
+        -> ConnectionResult<Vec<u8>> {
         use self::ConnectionError::KeyGenerationError;
 
         let kex = self.key_exchange.take().ok_or(KeyGenerationError)?;
@@ -139,7 +147,15 @@ impl<'a> Connection {
                 let int_c2s = self.generate_key(b"E", 256)?;
                 let int_s2c = self.generate_key(b"F", 256)?;
 
-                println!("c2s enc key: {:?}", enc_c2s);
+                self.encryption =
+                    Some((
+                        Box::new(
+                            AesCtr::new(enc_c2s.as_slice(), iv_c2s.as_slice()),
+                        ),
+                        Box::new(
+                            AesCtr::new(enc_s2c.as_slice(), iv_s2c.as_slice()),
+                        ),
+                    ));
 
                 Ok(())
             }

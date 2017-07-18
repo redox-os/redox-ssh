@@ -28,10 +28,8 @@ pub static COMPRESSION: &[CompressionAlgorithm] =
     &[CompressionAlgorithm::None, CompressionAlgorithm::Zlib];
 
 /// Find the best matching algorithm
-pub fn negotiate<A: PartialEq + Copy>(
-    server: &[A],
-    client: &[A],
-) -> ConnectionResult<A> {
+pub fn negotiate<A: PartialEq + Copy>(server: &[A], client: &[A])
+    -> ConnectionResult<A> {
     for algorithm in client.iter() {
         if server.iter().any(|a| a == algorithm) {
             return Ok(*algorithm);
