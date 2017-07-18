@@ -10,10 +10,10 @@ Currently implemented features, ordered by priority:
   - [ ] SSH Client
   - [ ] Key Exchange algorithms
     - [ ] `diffie-hellman-group-exchange-sha1`
-    - [ ] `curve25519-sha256`
+    - [x] `curve25519-sha256`
   - [ ] Public Key algorithms
     - [ ] `ssh-rsa`
-    - [ ] `ssh-ed25519`
+    - [x] `ssh-ed25519`
   - [ ] Encryption algorithms
     - [ ] `aes256-ctr`
     - [ ] `aes256-gcm`

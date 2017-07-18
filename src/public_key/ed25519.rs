@@ -84,13 +84,28 @@ impl KeyPair for Ed25519KeyPair {
     }
 
     fn verify(&self, data: &[u8], signature: &[u8]) -> Result<bool, ()> {
-        Ok(ed25519::verify(data, &self.public, signature))
+        use packet::ReadPacketExt;
+        use std::io::Cursor;
+
+        let mut reader = Cursor::new(signature);
+        let id = reader.read_string().unwrap_or(vec![]);
+
+        if id == b"ssh-ed25519" {
+            if let Ok(sig) = reader.read_string() {
+                return Ok(ed25519::verify(data, &self.public, sig.as_slice()));
+            }
+        }
+        Err(())
     }
 
     fn sign(&self, data: &[u8]) -> Result<Vec<u8>, ()> {
+        use packet::WritePacketExt;
         if let Some(private_key) = self.private {
-            let signature = ed25519::signature(data, &private_key);
-            Ok(signature.to_vec())
+            let mut result = Vec::new();
+            let sig = ed25519::signature(data, &private_key);
+            result.write_string("ssh-ed25519").or(Err(()));
+            result.write_bytes(&sig).or(Err(()));
+            Ok(result)
         }
         else {
             Err(())

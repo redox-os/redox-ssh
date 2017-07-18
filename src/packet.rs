@@ -21,6 +21,10 @@ impl Packet {
         self.payload[0].into()
     }
 
+    pub fn payload(self) -> Vec<u8> {
+        self.payload
+    }
+
     pub fn read_from<R: io::Read>(stream: &mut R) -> Result<Packet> {
         let mac_len = 0;
 

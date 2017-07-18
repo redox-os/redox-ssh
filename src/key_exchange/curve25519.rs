@@ -1,48 +1,141 @@
-use crypto::curve25519::curve25519;
-use key_exchange::{KeyExchange, KeyExchangeResult};
+use connection::{Connection, ConnectionType};
+use crypto::curve25519;
+use crypto::digest::Digest;
+use crypto::sha2::Sha256;
+use key_exchange::{KexResult, KeyExchange};
 use message::MessageType;
+use num_bigint::{BigInt, Sign};
 use packet::{Packet, ReadPacketExt, WritePacketExt};
-use public_key::ED25519;
+use rand::{self, Rng};
 
 const ECDH_KEX_INIT: u8 = 30;
 const ECDH_KEX_REPLY: u8 = 31;
 
-pub struct Curve25519 {}
+pub struct Curve25519 {
+    shared_secret: Option<[u8; 32]>,
+    exchange_hash: Option<Vec<u8>>,
+}
 
 impl Curve25519 {
     pub fn new() -> Curve25519 {
-        Curve25519 {}
+        Curve25519 {
+            shared_secret: None,
+            exchange_hash: None,
+        }
     }
 }
 
 impl KeyExchange for Curve25519 {
-    fn process(&mut self, packet: &Packet) -> KeyExchangeResult {
+    fn shared_secret<'a>(&'a self) -> Option<&'a [u8]> {
+        self.shared_secret.as_ref().map(|x| x as &[u8])
+    }
+
+    fn exchange_hash<'a>(&'a self) -> Option<&'a [u8]> {
+        self.exchange_hash.as_ref().map(|x| x.as_slice())
+    }
+
+    fn hash(&self, data: &[&[u8]]) -> Vec<u8> {
+        let mut hash = [0; 32];
+        let mut hasher = Sha256::new();
+
+        for item in data {
+            hasher.input(item);
+        }
+
+        hasher.result(&mut hash);
+        hash.to_vec()
+    }
+
+    fn process(&mut self, conn: &mut Connection, packet: Packet) -> KexResult {
         match packet.msg_type()
         {
             MessageType::KeyExchange(ECDH_KEX_INIT) => {
                 let mut reader = packet.reader();
-                let qc = reader.read_string().unwrap();
+                let client_public = reader.read_string().unwrap();
 
-                let keypair = (ED25519.generate_key_pair)(None);
-                let mut public_key = Vec::new();
-                keypair.write_public(&mut public_key);
+                let config = match &conn.conn_type
+                {
+                    &ConnectionType::Server(ref config) => config.clone(),
+                    _ => return KexResult::Error,
+                };
 
-                println!("Received qc: {:?}", qc);
+                let public_key = {
+                    let mut key = Vec::new();
+                    config.as_ref().key.write_public(&mut key).unwrap();
+                    key
+                };
+
+                println!("Received qc: {:?}", client_public);
                 let mut packet =
                     Packet::new(MessageType::KeyExchange(ECDH_KEX_REPLY));
 
-                packet.with_writer(&|w| {
-                    w.write_bytes(public_key.as_slice())?;
-                    w.write_bytes(qc.as_slice())?;
-                    w.write_bytes(&[0; 256])?;
-                    Ok(())
-                });
+                let server_secret = {
+                    let mut secret = [0; 32];
+                    let mut rng = rand::thread_rng();
+                    rng.fill_bytes(&mut secret);
 
-                KeyExchangeResult::Ok(Some(packet))
+                    secret[0] &= 248;
+                    secret[31] &= 127;
+                    secret[31] |= 64;
+
+                    secret
+                };
+
+                let server_public = curve25519::curve25519_base(&server_secret);
+                let shared_secret =
+                    curve25519::curve25519(&server_secret, &client_public);
+
+                let hash_data = {
+                    let mut buf = Vec::new();
+                    let data = &conn.hash_data;
+
+                    let items =
+                        [
+                            data.client_id.as_ref().unwrap().as_bytes(),
+                            data.server_id.as_ref().unwrap().as_bytes(),
+                            data.client_kexinit.as_ref().unwrap().as_slice(),
+                            data.server_kexinit.as_ref().unwrap().as_slice(),
+                            public_key.as_slice(),
+                            client_public.as_slice(),
+                            &server_public,
+                        ];
+
+                    for item in items.iter() {
+                        buf.write_bytes(item);
+                    }
+
+                    buf.write_mpint(
+                        BigInt::from_bytes_be(Sign::Plus, &shared_secret),
+                    );
+
+                    buf
+                };
+
+                // Calculate hash
+                let hash = self.hash(&[hash_data.as_slice()]);
+                let signature = config.as_ref().key.sign(&hash).unwrap();
+
+                println!("Hash: {:?}", hash);
+                println!("Public Key: {:?}", public_key);
+                println!("Signature: {:?}", signature);
+
+                packet
+                    .with_writer(&|w| {
+                        w.write_bytes(public_key.as_slice())?;
+                        w.write_bytes(&server_public)?;
+                        w.write_bytes(signature.as_slice())?; // Signature
+                        Ok(())
+                    })
+                    .unwrap();
+
+                self.exchange_hash = Some(hash);
+                self.shared_secret = Some(shared_secret);
+
+                KexResult::Done(packet)
             }
             _ => {
                 debug!("Unhandled key exchange packet: {:?}", packet);
-                KeyExchangeResult::Error(None)
+                KexResult::Error
             }
         }
     }

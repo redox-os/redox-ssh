@@ -1,5 +1,6 @@
 use std::io;
 use std::net::TcpListener;
+use std::sync::Arc;
 
 use connection::{Connection, ConnectionType};
 use public_key::KeyPair;
@@ -11,12 +12,12 @@ pub struct ServerConfig {
 }
 
 pub struct Server {
-    config: ServerConfig,
+    config: Arc<ServerConfig>,
 }
 
 impl Server {
     pub fn with_config(config: ServerConfig) -> Server {
-        Server { config: config }
+        Server { config: Arc::new(config) }
     }
 
     pub fn run(&self) -> io::Result<()> {
@@ -24,8 +25,8 @@ impl Server {
             (&*self.config.host, self.config.port),
         ).expect(&*format!(
             "sshd: failed to bind to {}:{}",
-            self.config.host,
-            self.config.port
+            self.config.as_ref().host,
+            self.config.as_ref().port
         ));
 
         loop {
@@ -36,8 +37,8 @@ impl Server {
             println!("Incoming connection from {}", addr);
 
             let mut connection = Connection::new(
-                ConnectionType::Server,
-                stream.try_clone().unwrap(),
+                ConnectionType::Server(self.config.clone()),
+                Box::new(stream.try_clone().unwrap()),
             );
 
             let result = connection.run(&mut stream);

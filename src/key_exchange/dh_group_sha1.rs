@@ -1,4 +1,5 @@
-use key_exchange::{KeyExchange, KeyExchangeResult};
+use connection::Connection;
+use key_exchange::{KexResult, KeyExchange};
 use message::MessageType;
 use num_bigint::{BigInt, RandBigInt, ToBigInt};
 use packet::{Packet, ReadPacketExt, WritePacketExt};
@@ -38,7 +39,19 @@ impl DhGroupSha1 {
 }
 
 impl KeyExchange for DhGroupSha1 {
-    fn process(&mut self, packet: &Packet) -> KeyExchangeResult {
+    fn shared_secret<'a>(&'a self) -> Option<&'a [u8]> {
+        Some(&[])
+    }
+
+    fn exchange_hash<'a>(&'a self) -> Option<&'a [u8]> {
+        Some(&[])
+    }
+
+    fn hash(&self, data: &[&[u8]]) -> Vec<u8> {
+        vec![]
+    }
+
+    fn process(&mut self, conn: &mut Connection, packet: Packet) -> KexResult {
         match packet.msg_type()
         {
             MessageType::KeyExchange(DH_GEX_REQUEST) => {
@@ -64,7 +77,7 @@ impl KeyExchange for DhGroupSha1 {
                 self.g = Some(g);
                 self.p = Some(p);
 
-                KeyExchangeResult::Ok(Some(packet))
+                KexResult::Ok(packet)
             }
             MessageType::KeyExchange(DH_GEX_INIT) => {
                 let mut reader = packet.reader();
@@ -83,11 +96,11 @@ impl KeyExchange for DhGroupSha1 {
 
                 self.e = Some(e);
 
-                KeyExchangeResult::Ok(Some(packet))
+                KexResult::Done(packet)
             }
             _ => {
                 debug!("Unhandled key exchange packet: {:?}", packet);
-                KeyExchangeResult::Error(None)
+                KexResult::Error
             }
         }
     }
