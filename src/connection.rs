@@ -225,6 +225,131 @@ impl<'a> Connection {
                 self.send(res)?;
                 Ok(())
             }
+            MessageType::UserAuthRequest => {
+                let mut reader = packet.reader();
+                let name = reader.read_utf8()?;
+                let service = reader.read_utf8()?;
+                let method = reader.read_utf8()?;
+
+                let success = if method == "password" {
+                    assert!(reader.read_bool()? == false);
+                    let pass = reader.read_utf8()?;
+                    pass == "hunter2"
+                }
+                else {
+                    false
+                };
+
+                if success {
+                    self.send(Packet::new(MessageType::UserAuthSuccess))?;
+                }
+                else {
+                    let mut res = Packet::new(MessageType::UserAuthFailure);
+                    res.with_writer(&|w| {
+                        w.write_string("password")?;
+                        w.write_bool(false)?;
+                        Ok(())
+                    })?;
+
+                    self.send(res)?;
+                }
+
+                debug!("User Auth {:?}, {:?}, {:?}", name, service, method);
+                Ok(())
+            }
+            MessageType::ChannelOpen => {
+                let mut reader = packet.reader();
+                let channel_type = reader.read_utf8()?;
+                let sender_channel = reader.read_uint32()?;
+                let window_size = reader.read_uint32()?;
+                let max_packet_size = reader.read_uint32()?;
+
+                let mut res = Packet::new(MessageType::ChannelOpenConfirmation);
+                res.with_writer(&|w| {
+                    w.write_uint32(sender_channel)?;
+                    w.write_uint32(0)?;
+                    w.write_uint32(window_size)?;
+                    w.write_uint32(max_packet_size)?;
+                    Ok(())
+                })?;
+
+                self.send(res)?;
+                debug!(
+                    "Channel Open {:?}, {:?}, {:?}, {:?}",
+                    channel_type,
+                    sender_channel,
+                    window_size,
+                    max_packet_size
+                );
+
+                Ok(())
+            }
+            MessageType::ChannelRequest => {
+                let mut reader = packet.reader();
+                let channel = reader.read_uint32()?;
+                let request = reader.read_utf8()?;
+                let want_reply = reader.read_bool()?;
+
+                debug!(
+                    "Channel Request {:?}, {:?}, {:?}",
+                    channel,
+                    request,
+                    want_reply
+                );
+
+                if request == "pty-req" {
+                    let term = reader.read_utf8()?;
+                    let char_width = reader.read_uint32()?;
+                    let row_height = reader.read_uint32()?;
+                    let pixel_width = reader.read_uint32()?;
+                    let pixel_height = reader.read_uint32()?;
+                    let modes = reader.read_string()?;
+
+                    debug!(
+                        "PTY request: {:?} {:?} {:?} {:?} {:?} {:?}",
+                        term,
+                        char_width,
+                        row_height,
+                        pixel_width,
+                        pixel_height,
+                        modes
+                    );
+                }
+
+                if request == "shell" {
+                    debug!("Shell request");
+                }
+
+                if want_reply {
+                    let mut res = Packet::new(MessageType::ChannelSuccess);
+                    res.with_writer(&|w| w.write_uint32(0));
+                    self.send(res)?;
+                }
+
+                Ok(())
+            }
+            MessageType::ChannelData => {
+                let mut reader = packet.reader();
+                let channel = reader.read_uint32()?;
+                let data = reader.read_string()?;
+
+                let mut res = Packet::new(MessageType::ChannelData);
+                res.with_writer(&|w| {
+                    w.write_uint32(0)?;
+                    w.write_bytes(data.as_slice())?;
+                    Ok(())
+                })?;
+
+                self.send(res);
+
+                debug!(
+                    "Channel {} Data ({} bytes): {:?}",
+                    channel,
+                    data.len(),
+                    data
+                );
+                Ok(())
+            }
             MessageType::KeyExchange(_) => {
                 let mut kex = self.key_exchange.take().ok_or(
                     ConnectionError::KeyExchangeError,
