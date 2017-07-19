@@ -21,27 +21,22 @@ impl Server {
     }
 
     pub fn run(&self) -> io::Result<()> {
-        let listener = TcpListener::bind(
-            (&*self.config.host, self.config.port),
-        ).expect(&*format!(
-            "sshd: failed to bind to {}:{}",
-            self.config.as_ref().host,
-            self.config.as_ref().port
-        ));
+        let listener =
+            TcpListener::bind((&*self.config.host, self.config.port))?;
 
         loop {
-            let (mut stream, addr) = listener.accept().expect(&*format!(
-                "sshd: failed to establish incoming connection"
-            ));
+            let (mut stream, addr) = listener.accept()?;
 
-            println!("Incoming connection from {}", addr);
+            debug!("Incoming connection from {}", addr);
+
+            let mut read_stream = stream.try_clone()?;
 
             let mut connection = Connection::new(
                 ConnectionType::Server(self.config.clone()),
-                Box::new(stream.try_clone().unwrap()),
+                Box::new(stream),
             );
 
-            let result = connection.run(&mut stream);
+            let result = connection.run(&mut read_stream);
             if let Some(error) = result.err() {
                 println!("sshd: {}", error)
             }
