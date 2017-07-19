@@ -9,16 +9,16 @@ Currently implemented features, ordered by priority:
   - [x] SSH Server
   - [ ] SSH Client
   - Key Exchange algorithms
+    - [x] `curve25519-sha256` (via [rust-crypto](https://github.com/DaGenix/rust-crypto))
     - [ ] `diffie-hellman-group-exchange-sha1`
-    - [x] `curve25519-sha256`
   - Public Key algorithms
+    - [x] `ssh-ed25519` (via [rust-crypto](https://github.com/DaGenix/rust-crypto))
     - [ ] `ssh-rsa`
-    - [x] `ssh-ed25519`
   - Encryption algorithms
-    - [x] `aes256-ctr`
+    - [x] `aes256-ctr` (via [rust-crypto](https://github.com/DaGenix/rust-crypto))
     - [ ] `aes256-gcm`
   - MAC algorithms
-    - [x] `hmac-sha2-256`
+    - [x] `hmac-sha2-256` (via [rust-crypto](https://github.com/DaGenix/rust-crypto))
   - [ ] Port forwarding
   - [ ] SCP File Transfers
 
