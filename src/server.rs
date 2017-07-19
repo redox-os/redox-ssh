@@ -1,6 +1,7 @@
 use std::io;
 use std::net::TcpListener;
 use std::sync::Arc;
+use std::thread;
 
 use connection::{Connection, ConnectionType};
 use public_key::KeyPair;
@@ -25,21 +26,25 @@ impl Server {
             TcpListener::bind((&*self.config.host, self.config.port))?;
 
         loop {
-            let (mut stream, addr) = listener.accept()?;
+            let (stream, addr) = listener.accept()?;
+            let config = self.config.clone();
 
             debug!("Incoming connection from {}", addr);
 
-            let mut read_stream = stream.try_clone()?;
+            thread::spawn(move || {
+                let mut read_stream = stream.try_clone().unwrap();
 
-            let mut connection = Connection::new(
-                ConnectionType::Server(self.config.clone()),
-                Box::new(stream),
-            );
+                let mut connection = Connection::new(
+                    ConnectionType::Server(config),
+                    Box::new(stream),
+                );
 
-            let result = connection.run(&mut read_stream);
-            if let Some(error) = result.err() {
-                println!("sshd: {}", error)
-            }
+                let result = connection.run(&mut read_stream);
+
+                if let Some(error) = result.err() {
+                    println!("sshd: {}", error)
+                }
+            });
         }
 
         Ok(())

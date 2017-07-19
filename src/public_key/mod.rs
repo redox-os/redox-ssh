@@ -7,7 +7,7 @@ mod ed25519;
 
 pub use self::ed25519::ED25519;
 
-pub trait KeyPair {
+pub trait KeyPair: Sync + Send {
     fn system(&self) -> &'static CryptoSystem;
 
     fn has_private(&self) -> bool;
