@@ -2,6 +2,7 @@ use std::fmt;
 use std::str::FromStr;
 
 use error::{ConnectionError, ConnectionResult};
+use key_exchange::{self, KeyExchange};
 
 /// Slice of implemented key exchange algorithms, ordered by preference
 pub static KEY_EXCHANGE: &[KeyExchangeAlgorithm] =
@@ -53,6 +54,19 @@ pub enum KeyExchangeAlgorithm {
     DH_GROUP14_SHA256,
     DH_GROUP14_SHA1,
     EXT_INFO_C,
+}
+
+impl KeyExchangeAlgorithm {
+    pub fn instance(&self) -> Option<Box<KeyExchange>> {
+        use self::KeyExchangeAlgorithm::*;
+        match self
+        {
+            &CURVE25519_SHA256 => Some(
+                Box::new(key_exchange::Curve25519::new()),
+            ),
+            _ => None,
+        }
+    }
 }
 
 impl FromStr for KeyExchangeAlgorithm {

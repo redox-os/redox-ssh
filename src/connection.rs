@@ -387,34 +387,40 @@ impl<'a> Connection {
 
     pub fn kex_init(&mut self, packet: Packet) -> ConnectionResult<()> {
         use algorithm::*;
-        {
+
+        let (kex_algo, srv_host_key_algo, enc_algo, mac_algo, comp_algo) = {
             let mut reader = packet.reader();
             let _ = reader.read_bytes(16)?; // Cookie. Throw it away.
+
             let kex_algos = reader.read_enum_list::<KeyExchangeAlgorithm>()?;
             let srv_host_key_algos =
                 reader.read_enum_list::<PublicKeyAlgorithm>()?;
+
             let enc_algos_c2s = reader.read_enum_list::<EncryptionAlgorithm>()?;
             let enc_algos_s2c = reader.read_enum_list::<EncryptionAlgorithm>()?;
+
             let mac_algos_c2s = reader.read_enum_list::<MacAlgorithm>()?;
             let mac_algos_s2c = reader.read_enum_list::<MacAlgorithm>()?;
+
             let comp_algos_c2s = reader
                 .read_enum_list::<CompressionAlgorithm>()?;
             let comp_algos_s2c = reader
                 .read_enum_list::<CompressionAlgorithm>()?;
 
-            let kex_algo = negotiate(KEY_EXCHANGE, kex_algos.as_slice())?;
-            let srv_host_key_algo =
-                negotiate(HOST_KEY, srv_host_key_algos.as_slice())?;
-            let enc_algo = negotiate(ENCRYPTION, enc_algos_s2c.as_slice())?;
-            let mac_algo = negotiate(MAC, mac_algos_s2c.as_slice())?;
-            let comp_algo = negotiate(COMPRESSION, comp_algos_s2c.as_slice())?;
+            (
+                negotiate(KEY_EXCHANGE, kex_algos.as_slice())?,
+                negotiate(HOST_KEY, srv_host_key_algos.as_slice())?,
+                negotiate(ENCRYPTION, enc_algos_s2c.as_slice())?,
+                negotiate(MAC, mac_algos_s2c.as_slice())?,
+                negotiate(COMPRESSION, comp_algos_s2c.as_slice())?,
+            )
+        };
 
-            debug!("Negotiated Kex Algorithm: {:?}", kex_algo);
-            debug!("Negotiated Host Key Algorithm: {:?}", srv_host_key_algo);
-            debug!("Negotiated Encryption Algorithm: {:?}", enc_algo);
-            debug!("Negotiated Mac Algorithm: {:?}", mac_algo);
-            debug!("Negotiated Comp Algorithm: {:?}", comp_algo);
-        }
+        debug!("Negotiated Kex Algorithm: {:?}", kex_algo);
+        debug!("Negotiated Host Key Algorithm: {:?}", srv_host_key_algo);
+        debug!("Negotiated Encryption Algorithm: {:?}", enc_algo);
+        debug!("Negotiated Mac Algorithm: {:?}", mac_algo);
+        debug!("Negotiated Comp Algorithm: {:?}", comp_algo);
 
         // Save payload for hash generation
         self.hash_data.client_kexinit = Some(packet.payload());
@@ -443,7 +449,7 @@ impl<'a> Connection {
         })?;
 
         self.state = ConnectionState::KeyExchange;
-        self.key_exchange = Some(Box::new(key_exchange::Curve25519::new()));
+        self.key_exchange = kex_algo.instance();
 
         packet.write_to(&mut self.stream)?;
 
