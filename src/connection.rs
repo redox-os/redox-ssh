@@ -1,4 +1,3 @@
-use std::borrow::BorrowMut;
 use std::io::{self, BufRead, BufReader, Read, Write};
 use std::sync::Arc;
 
@@ -20,7 +19,6 @@ enum ConnectionState {
 #[derive(Clone)]
 pub enum ConnectionType {
     Server(Arc<ServerConfig>),
-    Client,
 }
 
 #[derive(Default, Debug)]
@@ -88,7 +86,7 @@ impl<'a> Connection {
             trace!("Packet {} received: {:?}", self.seq.0, packet);
             self.process(packet)?;
 
-            self.seq.0 += 1;
+            self.seq.0.wrapping_add(1);
         }
     }
 
@@ -109,7 +107,7 @@ impl<'a> Connection {
             packet.write_to(&mut self.stream)?;
         }
 
-        self.seq.1 += 1;
+        self.seq.1.wrapping_add(1);
 
         if let Some((_, ref mut mac)) = self.mac {
             let mut sig = vec![0; mac.size()];
@@ -322,7 +320,7 @@ impl<'a> Connection {
 
                 if want_reply {
                     let mut res = Packet::new(MessageType::ChannelSuccess);
-                    res.with_writer(&|w| w.write_uint32(0));
+                    res.with_writer(&|w| w.write_uint32(0))?;
                     self.send(res)?;
                 }
 
@@ -340,7 +338,7 @@ impl<'a> Connection {
                     Ok(())
                 })?;
 
-                self.send(res);
+                self.send(res)?;
 
                 debug!(
                     "Channel {} Data ({} bytes): {:?}",

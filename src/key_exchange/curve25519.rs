@@ -86,7 +86,7 @@ impl KeyExchange for Curve25519 {
                     buf.write_mpint(BigInt::from_bytes_be(
                         Sign::Plus,
                         &curve25519::curve25519(&server_secret, &client_public),
-                    ));
+                    )).ok();
                     buf
                 };
 
@@ -106,10 +106,10 @@ impl KeyExchange for Curve25519 {
                         ];
 
                     for item in items.iter() {
-                        buf.write_bytes(item);
+                        buf.write_bytes(item).ok();
                     }
 
-                    buf.write_raw_bytes(&shared_secret);
+                    buf.write_raw_bytes(&shared_secret).ok();
 
                     buf
                 };

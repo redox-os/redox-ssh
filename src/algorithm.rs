@@ -215,9 +215,10 @@ impl FromStr for MacAlgorithm {
         use self::MacAlgorithm::*;
         match s
         {
-            "hmac-sha1" => Ok(MacAlgorithm::HMAC_SHA1),
-            "hmac-sha2-256" => Ok(MacAlgorithm::HMAC_SHA2_256),
-            "hmac-sha2-512" => Ok(MacAlgorithm::HMAC_SHA2_512),
+            "hmac-sha1" => Ok(HMAC_SHA1),
+            "hmac-sha2-256" => Ok(HMAC_SHA2_256),
+            "hmac-sha2-512" => Ok(HMAC_SHA2_512),
+            "none" => Ok(MacAlgorithm::None),
             _ => {
                 debug!("Unknown mac algorithm: {}", s);
                 Err(())

@@ -103,8 +103,8 @@ impl KeyPair for Ed25519KeyPair {
         if let Some(private_key) = self.private {
             let mut result = Vec::new();
             let sig = ed25519::signature(data, &private_key);
-            result.write_string("ssh-ed25519").or(Err(()));
-            result.write_bytes(&sig).or(Err(()));
+            result.write_string("ssh-ed25519").or(Err(()))?;
+            result.write_bytes(&sig).or(Err(()))?;
             Ok(result)
         }
         else {

@@ -1,8 +1,8 @@
 mod curve25519;
-mod dh_group_sha1;
+// mod dh_group_sha1;
 
 pub use self::curve25519::Curve25519;
-pub use self::dh_group_sha1::DhGroupSha1;
+// pub use self::dh_group_sha1::DhGroupSha1;
 
 use connection::Connection;
 use packet::Packet;
