@@ -32,14 +32,10 @@ impl Server {
             debug!("Incoming connection from {}", addr);
 
             thread::spawn(move || {
-                let mut read_stream = stream.try_clone().unwrap();
+                let mut connection =
+                    Connection::new(ConnectionType::Server(config));
 
-                let mut connection = Connection::new(
-                    ConnectionType::Server(config),
-                    Box::new(stream),
-                );
-
-                let result = connection.run(&mut read_stream);
+                let result = connection.run(stream);
 
                 if let Some(error) = result.err() {
                     println!("sshd: {}", error)
