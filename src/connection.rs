@@ -1,8 +1,9 @@
-use std::collections::VecDeque;
+use std::collections::{BTreeMap, VecDeque};
 use std::io::{self, BufReader, Read, Write};
 use std::net::TcpStream;
 use std::sync::Arc;
 
+use channel::{Channel, ChannelId, ChannelRequest};
 use encryption::{AesCtr, Decryptor, Encryption};
 use error::{ConnectionError, ConnectionResult as Result};
 use key_exchange::{KexResult, KeyExchange};
@@ -41,6 +42,7 @@ pub struct Connection {
     mac: Option<(Box<MacAlgorithm>, Box<MacAlgorithm>)>,
     seq: (u32, u32),
     tx_queue: VecDeque<Packet>,
+    channels: BTreeMap<ChannelId, Channel>,
 }
 
 impl<'a> Connection {
@@ -55,6 +57,7 @@ impl<'a> Connection {
             mac: None,
             seq: (0, 0),
             tx_queue: VecDeque::new(),
+            channels: BTreeMap::new(),
         }
     }
 
@@ -103,7 +106,7 @@ impl<'a> Connection {
             }
         }
 
-        trace!("Packet {} received: {:?}", self.seq.0, packet);
+        debug!("Packet {} received: {:?}", self.seq.0, packet);
 
         // Count up the received packet sequence number
         self.seq.0 = self.seq.0.wrapping_add(1);
@@ -113,7 +116,7 @@ impl<'a> Connection {
 
     fn send(&mut self, mut stream: &mut Write, packet: Packet)
         -> io::Result<()> {
-        trace!("Sending packet {}: {:?}", self.seq.1, packet);
+        debug!("Sending packet {}: {:?}", self.seq.1, packet);
 
         let packet = packet.to_raw()?;
 
@@ -247,7 +250,10 @@ impl<'a> Connection {
         let mut reader = packet.reader();
         let name = reader.read_string()?;
 
-        trace!("{:?}", ::std::str::from_utf8(&name.as_slice()).unwrap());
+        trace!(
+            "Service Request {:?}",
+            ::std::str::from_utf8(&name.as_slice()).unwrap()
+        );
 
         let mut res = Packet::new(MessageType::ServiceAccept);
         res.with_writer(&|w| {
@@ -292,64 +298,63 @@ impl<'a> Connection {
     fn channel_open(&mut self, packet: Packet) -> Result<Option<Packet>> {
         let mut reader = packet.reader();
         let channel_type = reader.read_utf8()?;
-        let sender_channel = reader.read_uint32()?;
+        let peer_id = reader.read_uint32()?;
         let window_size = reader.read_uint32()?;
         let max_packet_size = reader.read_uint32()?;
 
+        let id = if let Some((id, chan)) = self.channels.iter().next_back() {
+            id + 1
+        }
+        else {
+            0
+        };
+
+        let channel = Channel::new(id, peer_id, window_size, max_packet_size);
+
         let mut res = Packet::new(MessageType::ChannelOpenConfirmation);
         res.with_writer(&|w| {
-            w.write_uint32(sender_channel)?;
-            w.write_uint32(0)?;
-            w.write_uint32(window_size)?;
-            w.write_uint32(max_packet_size)?;
+            w.write_uint32(peer_id)?;
+            w.write_uint32(channel.id())?;
+            w.write_uint32(channel.window_size())?;
+            w.write_uint32(channel.max_packet_size())?;
             Ok(())
         })?;
 
-        debug!(
-            "Channel Open {:?}, {:?}, {:?}, {:?}",
-            channel_type,
-            sender_channel,
-            window_size,
-            max_packet_size
-        );
+        debug!("Open {:?}", channel);
+
+        self.channels.insert(id, channel);
 
         Ok(Some(res))
     }
 
     fn channel_request(&mut self, packet: Packet) -> Result<Option<Packet>> {
         let mut reader = packet.reader();
-        let channel = reader.read_uint32()?;
-        let request = reader.read_utf8()?;
+        let channel_id = reader.read_uint32()?;
+        let name = reader.read_utf8()?;
         let want_reply = reader.read_bool()?;
 
-        debug!(
-            "Channel Request {:?}, {:?}, {:?}",
-            channel,
-            request,
-            want_reply
-        );
 
-        if request == "pty-req" {
-            let term = reader.read_utf8()?;
-            let char_width = reader.read_uint32()?;
-            let row_height = reader.read_uint32()?;
-            let pixel_width = reader.read_uint32()?;
-            let pixel_height = reader.read_uint32()?;
-            let modes = reader.read_string()?;
+        let request = match &*name
+        {
+            "pty-req" => Some(ChannelRequest::Pty {
+                term: reader.read_utf8()?,
+                char_width: reader.read_uint32()?,
+                row_height: reader.read_uint32()?,
+                pixel_width: reader.read_uint32()?,
+                pixel_height: reader.read_uint32()?,
+                modes: reader.read_string()?,
+            }),
+            "shell" => Some(ChannelRequest::Shell),
+            _ => None,
+        };
 
-            debug!(
-                "PTY request: {:?} {:?} {:?} {:?} {:?} {:?}",
-                term,
-                char_width,
-                row_height,
-                pixel_width,
-                pixel_height,
-                modes
-            );
+
+        if let Some(request) = request {
+            let mut channel = self.channels.get_mut(&channel_id).unwrap();
+            channel.request(request);
         }
-
-        if request == "shell" {
-            debug!("Shell request");
+        else {
+            warn!("Unkown channel request {}", name);
         }
 
         if want_reply {
@@ -364,24 +369,28 @@ impl<'a> Connection {
 
     fn channel_data(&mut self, packet: Packet) -> Result<Option<Packet>> {
         let mut reader = packet.reader();
-        let channel = reader.read_uint32()?;
+        let channel_id = reader.read_uint32()?;
         let data = reader.read_string()?;
 
-        let mut res = Packet::new(MessageType::ChannelData);
-        res.with_writer(&|w| {
-            w.write_uint32(0)?;
-            w.write_bytes(data.as_slice())?;
-            Ok(())
-        })?;
+        let mut channel = self.channels.get_mut(&channel_id).unwrap();
+        channel.data(data.as_slice())?;
 
-        debug!(
-            "Channel {} Data ({} bytes): {:?}",
-            channel,
-            data.len(),
-            data
-        );
+        let data = channel.read()?;
 
-        Ok(Some(res))
+        if data.len() > 0 {
+            let mut res = Packet::new(MessageType::ChannelData);
+            res.with_writer(&|w| {
+                w.write_uint32(0)?;
+                w.write_bytes(data.as_slice())?;
+                Ok(())
+            })?;
+
+            Ok(Some(res))
+        }
+        else {
+            Ok(None)
+        }
+
     }
 
     fn kex_init(&mut self, packet: Packet) -> Result<Option<Packet>> {

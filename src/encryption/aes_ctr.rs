@@ -15,12 +15,10 @@ impl AesCtr {
 
 impl Encryption for AesCtr {
     fn encrypt(&mut self, data: &[u8], buf: &mut [u8]) {
-        trace!("Encrypting {} -> {}", data.len(), buf.len());
         self.cipher.process(data, buf);
     }
 
     fn decrypt(&mut self, data: &[u8], buf: &mut [u8]) {
-        trace!("Decrypting {} -> {}", data.len(), buf.len());
         self.cipher.process(data, buf);
     }
 }

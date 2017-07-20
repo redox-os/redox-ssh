@@ -29,6 +29,7 @@ impl log::Log for StdErrLogger {
 
 pub fn main() {
     let mut verbose = false;
+    let mut foreground = false;
 
     let key_pair = File::open("server.key").and_then(
         |mut f| (ED25519.import)(&mut f),
@@ -51,6 +52,7 @@ pub fn main() {
         match arg.as_ref()
         {
             "-v" => verbose = true,
+            "-f" => foreground = true,
             "-p" => {
                 config.port =
                     u16::from_str(
@@ -66,6 +68,13 @@ pub fn main() {
             max_log_level.set(LogLevelFilter::Trace);
             Box::new(StdErrLogger)
         }).unwrap();
+    }
+
+    if !foreground {
+        use ssh::sys::fork;
+        if fork() != 0 {
+            process::exit(0);
+        }
     }
 
     let server = Server::with_config(config);
