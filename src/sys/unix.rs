@@ -12,8 +12,21 @@ pub fn before_exec() -> Result<()> {
 }
 
 pub fn fork() -> usize {
-    extern crate libc;
+    use libc;
     unsafe { libc::fork() as usize }
+}
+
+pub fn set_winsize(fd: RawFd, row: u16, col: u16, xpixel: u16, ypixel: u16) {
+    use libc;
+    unsafe {
+        let size = libc::winsize {
+            ws_row: row,
+            ws_col: col,
+            ws_xpixel: xpixel,
+            ws_ypixel: ypixel,
+        };
+        libc::ioctl(fd, libc::TIOCSWINSZ, &size as *const libc::winsize);
+    }
 }
 
 pub fn getpty() -> (RawFd, PathBuf) {
@@ -21,7 +34,6 @@ pub fn getpty() -> (RawFd, PathBuf) {
     use std::ffi::CStr;
     use std::fs::OpenOptions;
     use std::io::Error;
-    use std::os::unix::fs::OpenOptionsExt;
     use std::os::unix::io::IntoRawFd;
 
     const TIOCPKT: libc::c_ulong = 0x5420;
@@ -35,7 +47,6 @@ pub fn getpty() -> (RawFd, PathBuf) {
     let master_fd = OpenOptions::new()
         .read(true)
         .write(true)
-        .custom_flags(libc::O_NONBLOCK)
         .open("/dev/ptmx")
         .unwrap()
         .into_raw_fd();
