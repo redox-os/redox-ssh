@@ -28,7 +28,7 @@ impl log::Log for StdErrLogger {
 }
 
 pub fn main() {
-    let mut verbose = false;
+    let mut verbosity = LogLevelFilter::Warn;
     let mut foreground = false;
 
     let key_pair = File::open("server.key").and_then(
@@ -51,7 +51,9 @@ pub fn main() {
     while let Some(arg) = args.next() {
         match arg.as_ref()
         {
-            "-v" => verbose = true,
+            "-v" => verbosity = LogLevelFilter::Info,
+            "-vv" => verbosity = LogLevelFilter::Debug,
+            "-vvv" => verbosity = LogLevelFilter::Trace,
             "-f" => foreground = true,
             "-p" => {
                 config.port =
@@ -63,12 +65,10 @@ pub fn main() {
         }
     }
 
-    if verbose {
-        log::set_logger(|max_log_level| {
-            max_log_level.set(LogLevelFilter::Trace);
-            Box::new(StdErrLogger)
-        }).unwrap();
-    }
+    log::set_logger(|max_log_level| {
+        max_log_level.set(verbosity);
+        Box::new(StdErrLogger)
+    }).unwrap();
 
     if !foreground {
         use ssh::sys::fork;
