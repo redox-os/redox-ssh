@@ -1,0 +1,1 @@
+initSidebarItems({"fn":[["derive","Fills `out` with the key derived using PBKDF2 with the given inputs."],["verify","Verifies that a previously-derived (e.g., using `derive`) PBKDF2 value matches the PBKDF2 value derived from the other inputs."]]});

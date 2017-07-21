@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `RSAKeyPair` struct in crate `ring`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, RSAKeyPair">
+
+    <title>ring::signature::RSAKeyPair - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc struct">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'>Struct RSAKeyPair</p><div class="block items"><ul><li><a href="#methods">Methods</a></li><li><a href="#implementations">Trait Implementations</a></li></ul></div><p class='location'><a href='../index.html'>ring</a>::<wbr><a href='index.html'>signature</a></p><script>window.sidebarCurrent = {name: 'RSAKeyPair', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content">
+<h1 class='fqn'><span class='in-band'>Struct <a href='../index.html'>ring</a>::<wbr><a href='index.html'>signature</a>::<wbr><a class="struct" href=''>RSAKeyPair</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../../src/ring/rsa/signing.rs.html#30-40' title='goto source code'>[src]</a></span></h1>
+<pre class='rust struct'>pub struct RSAKeyPair { /* fields omitted */ }</pre><div class='docblock'><p>An RSA key pair, used for signing. Feature: <code>rsa_signing</code>.</p>
+
+<p>After constructing an <code>RSAKeyPair</code>, construct one or more
+<code>RSASigningState</code>s that reference the <code>RSAKeyPair</code> and use
+<code>RSASigningState::sign()</code> to generate signatures. See <code>ring::signature</code>&#39;s
+module-level documentation for an example.</p>
+</div><h2 id='methods'>Methods</h2><h3 class='impl'><span class='in-band'><code>impl <a class="struct" href="../../ring/signature/struct.RSAKeyPair.html" title="struct ring::signature::RSAKeyPair">RSAKeyPair</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/ring/rsa/signing.rs.html#46-387' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.from_pkcs8' class="method"><span id='from_pkcs8.v' class='invisible'><code>fn <a href='#method.from_pkcs8' class='fnname'>from_pkcs8</a>(input: <a class="struct" href="../../untrusted/struct.Input.html" title="struct untrusted::Input">Input</a>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="struct" href="../../ring/signature/struct.RSAKeyPair.html" title="struct ring::signature::RSAKeyPair">RSAKeyPair</a>, <a class="struct" href="../../ring/error/struct.Unspecified.html" title="struct ring::error::Unspecified">Unspecified</a>&gt;</code></span></h4>
+<div class='docblock'><p>Parses an unencrypted PKCS#8-encoded RSA private key.</p>
+
+<p>Only two-prime (not multi-prime) keys are supported. The public modulus
+(n) must be at least 2047 bits. The public modulus must be no larger
+than 4096 bits. It is recommended that the public modulus be exactly
+2048 or 3072 bits. The public exponent must be at least 65537.</p>
+
+<p>This will generate a 2048-bit RSA private key of the correct form using
+OpenSSL&#39;s command line tool:</p>
+
+<pre><code class="language-sh">   openssl genpkey -algorithm RSA \
+       -pkeyopt rsa_keygen_bits:2048 \
+       -pkeyopt rsa_keygen_pubexp:65537 | \
+     openssl pkcs8 -topk8 -nocrypt -outform der &gt; rsa-2048-private-key.pk8
+</code></pre>
+
+<p>This will generate a 3072-bit RSA private key of the correct form:</p>
+
+<pre><code class="language-sh">   openssl genpkey -algorithm RSA \
+       -pkeyopt rsa_keygen_bits:2048 \
+       -pkeyopt rsa_keygen_pubexp:65537 | \
+     openssl pkcs8 -topk8 -nocrypt -outform der &gt; rsa-2048-private-key.pk8
+</code></pre>
+
+<p>Often, keys generated for use in OpenSSL-based software are stored in
+the Base64 “PEM” format without the PKCS#8 wrapper. Such keys can be
+converted to binary PKCS#8 form using the OpenSSL command line tool like
+this:</p>
+
+<pre><code class="language-sh">openssl pkcs8 -topk8 -nocrypt -outform der \
+    -in rsa-2048-private-key.pem &gt; rsa-2048-private-key.pk8
+</code></pre>
+
+<p>Base64 (“PEM”) PKCS#8-encoded keys can be converted to the binary PKCS#8
+form like this:</p>
+
+<pre><code class="language-sh">openssl pkcs8 -nocrypt -outform der \
+    -in rsa-2048-private-key.pem &gt; rsa-2048-private-key.pk8
+</code></pre>
+
+<p>The private key is validated according to <a href="http://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-56Br1.pdf">NIST SP-800-56B rev. 1</a>
+section 6.4.1.4.3, crt_pkv (Intended Exponent-Creation Method Unknown),
+with the following exceptions:</p>
+
+<ul>
+<li>Section 6.4.1.2.1, Step 1: Neither a target security level nor an
+expected modulus length is provided as a parameter, so checks
+regarding these expectations are not done.</li>
+<li>Section 6.4.1.2.1, Step 3: Since neither the public key nor the
+expected modulus length is provided as a parameter, the consistency
+check between these values and the private key&#39;s value of n isn&#39;t done.</li>
+<li>Section 6.4.1.2.1, Step 5: No primality tests are done, both for
+performance reasons and to avoid any side channels that such tests
+would provide.</li>
+<li><p>Section 6.4.1.2.1, Step 6, and 6.4.1.4.3, Step 7:</p>
+
+<ul>
+<li><em>ring</em> has a slightly looser lower bound for the values of <code>p</code>
+and <code>q</code> than what the NIST document specifies. This looser lower
+bound matches what most other crypto libraries do. The check might
+be tightened to meet NIST&#39;s requirements in the future.</li>
+<li><p>The validity of the mathematical relationship of <code>dP</code>, <code>dQ</code>, <code>e</code>
+and <code>n</code> is verified only during signing. Some size checks of <code>d</code>,
+<code>dP</code> and <code>dQ</code> are performed at construction, but some NIST checks
+are skipped because they would be expensive and/or they would leak
+information through side channels. If a preemptive check of the
+consistency of <code>dP</code>, <code>dQ</code>, <code>e</code> and <code>n</code> with each other is
+necessary, that can be done by signing any message with the key
+pair.</p></li>
+<li><p><code>d</code> is not fully validated, neither at construction nor during
+signing. This is OK as far as <em>ring</em>&#39;s usage of the key is
+concerned because <em>ring</em> never uses the value of <code>d</code> (<em>ring</em> always
+uses <code>p</code>, <code>q</code>, <code>dP</code> and <code>dQ</code> via the Chinese Remainder Theorem,
+instead). However, <em>ring</em>&#39;s checks would not be sufficient for
+validating a key pair for use by some other system; that other
+system must check the value of <code>d</code> itself if <code>d</code> is to be used.</p></li>
+</ul></li>
+</ul>
+
+<p>In addition to the NIST requirements, <em>ring</em> requires that <code>p &gt; q</code> and
+that <code>e</code> must be no more than 33 bits.</p>
+
+<p>See <a href="https://tools.ietf.org/html/rfc5958">RFC 5958</a> and <a href="https://tools.ietf.org/html/rfc3447#appendix-A.1.2">RFC 3447 Appendix A.1.2</a> for more details of the
+encoding of the key.</p>
+</div><h4 id='method.from_der' class="method"><span id='from_der.v' class='invisible'><code>fn <a href='#method.from_der' class='fnname'>from_der</a>(input: <a class="struct" href="../../untrusted/struct.Input.html" title="struct untrusted::Input">Input</a>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="struct" href="../../ring/signature/struct.RSAKeyPair.html" title="struct ring::signature::RSAKeyPair">RSAKeyPair</a>, <a class="struct" href="../../ring/error/struct.Unspecified.html" title="struct ring::error::Unspecified">Unspecified</a>&gt;</code></span></h4>
+<div class='docblock'><p>Parses an RSA private key that is not inside a PKCS#8 wrapper.</p>
+
+<p>The private key must be encoded as a binary DER-encoded ASN.1
+<code>RSAPrivateKey</code> as described in <a href="https://tools.ietf.org/html/rfc3447#appendix-A.1.2">RFC 3447 Appendix A.1.2</a>). In all other
+respects, this is just like <code>RSAKeyPair::from_pkcs8()</code>. See the
+documentation for <code>from_pkcs8()</code> for more details.</p>
+
+<p>It is recommended to use <code>RSAKeyPair::from_pkcs8()</code> (with a
+PKCS#8-encoded key) instead.</p>
+</div><h4 id='method.public_modulus_len' class="method"><span id='public_modulus_len.v' class='invisible'><code>fn <a href='#method.public_modulus_len' class='fnname'>public_modulus_len</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a></code></span></h4>
+<div class='docblock'><p>Returns the length in bytes of the key pair&#39;s public modulus.</p>
+
+<p>A signature has the same length as the public modulus.</p>
+</div></div><h2 id='implementations'>Trait Implementations</h2><h3 class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sync.html" title="trait core::marker::Sync">Sync</a> for <a class="struct" href="../../ring/signature/struct.RSAKeyPair.html" title="struct ring::signature::RSAKeyPair">RSAKeyPair</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/ring/rsa/signing.rs.html#44' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'></div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../";
+        window.currentCrate = "ring";
+    </script>
+    <script src="../../jquery.js"></script>
+    <script src="../../main.js"></script>
+    <script defer src="../../search-index.js"></script>
+</body>
+</html>

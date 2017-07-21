@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `Ed25519KeyPair` struct in crate `ring`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, Ed25519KeyPair">
+
+    <title>ring::signature::Ed25519KeyPair - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc struct">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'>Struct Ed25519KeyPair</p><div class="block items"><ul><li><a href="#methods">Methods</a></li></ul></div><p class='location'><a href='../index.html'>ring</a>::<wbr><a href='index.html'>signature</a></p><script>window.sidebarCurrent = {name: 'Ed25519KeyPair', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content">
+<h1 class='fqn'><span class='in-band'>Struct <a href='../index.html'>ring</a>::<wbr><a href='index.html'>signature</a>::<wbr><a class="struct" href=''>Ed25519KeyPair</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../../src/ring/ec/curve25519/ed25519.rs.html#32-41' title='goto source code'>[src]</a></span></h1>
+<pre class='rust struct'>pub struct Ed25519KeyPair { /* fields omitted */ }</pre><div class='docblock'><p>An Ed25519 key pair, for signing.</p>
+</div><h2 id='methods'>Methods</h2><h3 class='impl'><span class='in-band'><code>impl&lt;'a&gt; <a class="struct" href="../../ring/signature/struct.Ed25519KeyPair.html" title="struct ring::signature::Ed25519KeyPair">Ed25519KeyPair</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/ring/ec/curve25519/ed25519.rs.html#43-203' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.generate_pkcs8' class="method"><span id='generate_pkcs8.v' class='invisible'><code>fn <a href='#method.generate_pkcs8' class='fnname'>generate_pkcs8</a>(rng: &amp;<a class="trait" href="../../ring/rand/trait.SecureRandom.html" title="trait ring::rand::SecureRandom">SecureRandom</a>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.array.html">[</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.array.html">; 85]</a>, <a class="struct" href="../../ring/error/struct.Unspecified.html" title="struct ring::error::Unspecified">Unspecified</a>&gt;</code></span></h4>
+<div class='docblock'><p>Generates a new key pair and returns the key pair serialized as a
+PKCS#8 document.</p>
+
+<p>The PKCS#8 document will be a v2 <code>OneAsymmetricKey</code> with the public key,
+as described in <a href="https://tools.ietf.org/html/rfc5958#section-2">RFC 5958 Section 2</a>. See also
+<a href="https://tools.ietf.org/html/draft-ietf-curdle-pkix-04">https://tools.ietf.org/html/draft-ietf-curdle-pkix-04</a>.</p>
+</div><h4 id='method.from_pkcs8' class="method"><span id='from_pkcs8.v' class='invisible'><code>fn <a href='#method.from_pkcs8' class='fnname'>from_pkcs8</a>(input: <a class="struct" href="../../untrusted/struct.Input.html" title="struct untrusted::Input">Input</a>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="struct" href="../../ring/signature/struct.Ed25519KeyPair.html" title="struct ring::signature::Ed25519KeyPair">Ed25519KeyPair</a>, <a class="struct" href="../../ring/error/struct.Unspecified.html" title="struct ring::error::Unspecified">Unspecified</a>&gt;</code></span></h4>
+<div class='docblock'><p>Constructs an Ed25519 key pair by parsing an unencrypted PKCS#8 v2
+Ed25519 private key.</p>
+
+<p>The input must be in PKCS#8 v2 format, and in particular it must contain
+the public key in addition to the private key. <code>from_pkcs8()</code> will
+verify that the public key and the private key are consistent with each
+other.</p>
+
+<p>If you need to parse PKCS#8 v1 files (without the public key) then use
+<code>Ed25519KeyPair::from_pkcs8_maybe_unchecked()</code> instead.</p>
+</div><h4 id='method.from_pkcs8_maybe_unchecked' class="method"><span id='from_pkcs8_maybe_unchecked.v' class='invisible'><code>fn <a href='#method.from_pkcs8_maybe_unchecked' class='fnname'>from_pkcs8_maybe_unchecked</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;input: <a class="struct" href="../../untrusted/struct.Input.html" title="struct untrusted::Input">Input</a><br>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="struct" href="../../ring/signature/struct.Ed25519KeyPair.html" title="struct ring::signature::Ed25519KeyPair">Ed25519KeyPair</a>, <a class="struct" href="../../ring/error/struct.Unspecified.html" title="struct ring::error::Unspecified">Unspecified</a>&gt;</code></span></h4>
+<div class='docblock'><p>Constructs an Ed25519 key pair by parsing an unencrypted PKCS#8 v1 or v2
+Ed25519 private key.</p>
+
+<p>It is recommended to use <code>Ed25519KeyPair::from_pkcs8()</code>, which accepts
+only PKCS#8 v2 files that contain the public key.
+<code>from_pkcs8_maybe_unchecked()</code> parses PKCS#2 files exactly like
+<code>from_pkcs8()</code>. It also accepts v1 files. PKCS#8 v1 files do not contain
+the public key, so when a v1 file is parsed the public key will be
+computed from the private key, and there will be no consistency check
+between the public key and the private key.</p>
+
+<p>PKCS#8 v2 files are parsed exactly like <code>Ed25519KeyPair::from_pkcs8()</code>.</p>
+</div><h4 id='method.from_seed_and_public_key' class="method"><span id='from_seed_and_public_key.v' class='invisible'><code>fn <a href='#method.from_seed_and_public_key' class='fnname'>from_seed_and_public_key</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;seed: <a class="struct" href="../../untrusted/struct.Input.html" title="struct untrusted::Input">Input</a>, <br>&nbsp;&nbsp;&nbsp;&nbsp;public_key: <a class="struct" href="../../untrusted/struct.Input.html" title="struct untrusted::Input">Input</a><br>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="struct" href="../../ring/signature/struct.Ed25519KeyPair.html" title="struct ring::signature::Ed25519KeyPair">Ed25519KeyPair</a>, <a class="struct" href="../../ring/error/struct.Unspecified.html" title="struct ring::error::Unspecified">Unspecified</a>&gt;</code></span></h4>
+<div class='docblock'><p>Constructs an Ed25519 key pair from the private key seed <code>seed</code> and its
+public key <code>public_key</code>.</p>
+
+<p>It is recommended to use <code>Ed25519KeyPair::from_pkcs8()</code> instead.</p>
+
+<p>The private and public keys will be verified to be consistent with each
+other. This helps avoid misuse of the key (e.g. accidentally swapping
+the private key and public key, or using the wrong private key for the
+public key). This also detects any corruption of the public or private
+key.</p>
+</div><h4 id='method.from_seed_unchecked' class="method"><span id='from_seed_unchecked.v' class='invisible'><code>fn <a href='#method.from_seed_unchecked' class='fnname'>from_seed_unchecked</a>(seed: <a class="struct" href="../../untrusted/struct.Input.html" title="struct untrusted::Input">Input</a>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="struct" href="../../ring/signature/struct.Ed25519KeyPair.html" title="struct ring::signature::Ed25519KeyPair">Ed25519KeyPair</a>, <a class="struct" href="../../ring/error/struct.Unspecified.html" title="struct ring::error::Unspecified">Unspecified</a>&gt;</code></span></h4>
+<div class='docblock'><p>Constructs a Ed25519 key pair from the private key seed <code>seed</code>.</p>
+
+<p>It is recommended to use <code>Ed25519KeyPair::from_pkcs8()</code> instead. When
+that is not practical, it is recommended to use
+<code>Ed25519KeyPair::from_seed_and_public_key()</code> instead.</p>
+
+<p>Since the public key is not given, the public key will be computed from
+the private key. It is not possible to detect misuse or corruption of
+the private key since the public key isn&#39;t given as input.</p>
+</div><h4 id='method.public_key_bytes' class="method"><span id='public_key_bytes.v' class='invisible'><code>fn <a href='#method.public_key_bytes' class='fnname'>public_key_bytes</a>(&amp;'a self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;'a [</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a></code></span></h4>
+<div class='docblock'><p>Returns a reference to the little-endian-encoded public key bytes.</p>
+</div><h4 id='method.sign' class="method"><span id='sign.v' class='invisible'><code>fn <a href='#method.sign' class='fnname'>sign</a>(&amp;self, msg: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;[</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a>) -&gt; <a class="struct" href="../../ring/signature/struct.Signature.html" title="struct ring::signature::Signature">Signature</a></code></span></h4>
+<div class='docblock'><p>Returns the signature of the message <code>msg</code>.</p>
+</div></div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../";
+        window.currentCrate = "ring";
+    </script>
+    <script src="../../jquery.js"></script>
+    <script src="../../main.js"></script>
+    <script defer src="../../search-index.js"></script>
+</body>
+</html>
