@@ -1,6 +1,5 @@
 use std::collections::{BTreeMap, VecDeque};
 use std::io::{self, BufReader, Read, Write};
-use std::net::TcpStream;
 use std::sync::Arc;
 
 use channel::{Channel, ChannelId, ChannelRequest};
@@ -249,10 +248,7 @@ impl<'a> Connection {
         );
 
         let mut res = Packet::new(MessageType::ServiceAccept);
-        res.with_writer(&|w| {
-            w.write_bytes(name.as_slice())?;
-            Ok(())
-        })?;
+        res.write_bytes(name.as_slice())?;
 
         Ok(Some(res))
     }
@@ -279,11 +275,9 @@ impl<'a> Connection {
         }
         else {
             let mut res = Packet::new(MessageType::UserAuthFailure);
-            res.with_writer(&|w| {
-                w.write_string("password")?;
-                w.write_bool(false)?;
-                Ok(())
-            })?;
+            res.write_string("password")?;
+            res.write_bool(false)?;
+
             Ok(Some(res))
         }
     }
@@ -305,13 +299,10 @@ impl<'a> Connection {
         let channel = Channel::new(id, peer_id, window_size, max_packet_size);
 
         let mut res = Packet::new(MessageType::ChannelOpenConfirmation);
-        res.with_writer(&|w| {
-            w.write_uint32(peer_id)?;
-            w.write_uint32(channel.id())?;
-            w.write_uint32(channel.window_size())?;
-            w.write_uint32(channel.max_packet_size())?;
-            Ok(())
-        })?;
+        res.write_uint32(peer_id)?;
+        res.write_uint32(channel.id())?;
+        res.write_uint32(channel.window_size())?;
+        res.write_uint32(channel.max_packet_size())?;
 
         debug!("Open {:?}", channel);
 
@@ -352,7 +343,7 @@ impl<'a> Connection {
 
         if want_reply {
             let mut res = Packet::new(MessageType::ChannelSuccess);
-            res.with_writer(&|w| w.write_uint32(0))?;
+            res.write_uint32(0)?;
             Ok(Some(res))
         }
         else {
@@ -417,22 +408,19 @@ impl<'a> Connection {
         let cookie: Vec<u8> = rng.gen_iter::<u8>().take(16).collect();
 
         let mut packet = Packet::new(MessageType::KexInit);
-        packet.with_writer(&|w| {
-            w.write_raw_bytes(cookie.as_slice())?;
-            w.write_list(KEY_EXCHANGE)?;
-            w.write_list(HOST_KEY)?;
-            w.write_list(ENCRYPTION)?;
-            w.write_list(ENCRYPTION)?;
-            w.write_list(MAC)?;
-            w.write_list(MAC)?;
-            w.write_list(COMPRESSION)?;
-            w.write_list(COMPRESSION)?;
-            w.write_string("")?;
-            w.write_string("")?;
-            w.write_bool(false)?;
-            w.write_uint32(0)?;
-            Ok(())
-        })?;
+        packet.write_raw_bytes(cookie.as_slice())?;
+        packet.write_list(KEY_EXCHANGE)?;
+        packet.write_list(HOST_KEY)?;
+        packet.write_list(ENCRYPTION)?;
+        packet.write_list(ENCRYPTION)?;
+        packet.write_list(MAC)?;
+        packet.write_list(MAC)?;
+        packet.write_list(COMPRESSION)?;
+        packet.write_list(COMPRESSION)?;
+        packet.write_string("")?;
+        packet.write_string("")?;
+        packet.write_bool(false)?;
+        packet.write_uint32(0)?;
 
         self.state = ConnectionState::KeyExchange;
         self.key_exchange = kex_algo.instance();

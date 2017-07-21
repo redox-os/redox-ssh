@@ -118,14 +118,9 @@ impl KeyExchange for Curve25519 {
                 let hash = self.hash(&[hash_data.as_slice()]);
                 let signature = config.as_ref().key.sign(&hash).unwrap();
 
-                packet
-                    .with_writer(&|w| {
-                        w.write_bytes(public_key.as_slice())?;
-                        w.write_bytes(&server_public)?;
-                        w.write_bytes(signature.as_slice())?; // Signature
-                        Ok(())
-                    })
-                    .unwrap();
+                packet.write_bytes(public_key.as_slice()).unwrap();
+                packet.write_bytes(&server_public).unwrap();
+                packet.write_bytes(signature.as_slice()).unwrap(); // Signature
 
                 self.exchange_hash = Some(hash);
                 self.shared_secret = Some(shared_secret);

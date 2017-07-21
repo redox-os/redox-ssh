@@ -97,19 +97,6 @@ impl Packet {
         }
     }
 
-    pub fn writer<'a>(&'a mut self) -> &'a mut Write {
-        match self
-        {
-            &mut Packet::Raw(ref mut data, _) => data,
-            &mut Packet::Payload(ref mut payload) => payload,
-        }
-    }
-
-    pub fn with_writer(&mut self, f: &Fn(&mut Write) -> Result<()>)
-        -> Result<()> {
-        f(self.writer())
-    }
-
     pub fn reader<'a>(&'a self) -> BufReader<&'a [u8]> {
         match self
         {
@@ -143,6 +130,24 @@ impl Packet {
         else {
             padding_len
         }
+    }
+}
+
+impl Write for Packet {
+    fn write(&mut self, buf: &[u8]) -> Result<usize> {
+        match self
+        {
+            &mut Packet::Payload(ref mut payload) => payload.write(buf),
+            &mut Packet::Raw(ref mut data, ref mut payload_len) => {
+                let count = data.write(buf)?;
+                *payload_len += count;
+                Ok(count)
+            }
+        }
+    }
+
+    fn flush(&mut self) -> Result<()> {
+        Ok(())
     }
 }
 
