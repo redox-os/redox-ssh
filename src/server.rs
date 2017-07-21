@@ -26,7 +26,7 @@ impl Server {
             TcpListener::bind((&*self.config.host, self.config.port))?;
 
         loop {
-            let (stream, addr) = listener.accept()?;
+            let (mut stream, addr) = listener.accept()?;
             let config = self.config.clone();
 
             debug!("Incoming connection from {}", addr);
@@ -35,7 +35,7 @@ impl Server {
                 let mut connection =
                     Connection::new(ConnectionType::Server(config));
 
-                let result = connection.run(stream);
+                let result = connection.run(&mut stream);
 
                 if let Some(error) = result.err() {
                     println!("sshd: {}", error)
