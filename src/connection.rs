@@ -1,6 +1,7 @@
 use std::collections::{BTreeMap, VecDeque};
 use std::io::{self, BufReader, Read, Write};
 use std::sync::Arc;
+use std::sync::mpsc;
 
 use channel::{Channel, ChannelId, ChannelRequest};
 use encryption::{AesCtr, Decryptor, Encryption};
@@ -16,6 +17,11 @@ enum ConnectionState {
     Initial,
     KeyExchange,
     Established,
+}
+
+pub enum ConnectionEvent {
+    ChannelData(ChannelId),
+    StreamData,
 }
 
 #[derive(Clone)]
@@ -42,10 +48,14 @@ pub struct Connection {
     seq: (u32, u32),
     tx_queue: VecDeque<Packet>,
     channels: BTreeMap<ChannelId, Channel>,
+    pub events_tx: mpsc::Sender<ConnectionEvent>,
+    events_rx: mpsc::Receiver<ConnectionEvent>,
 }
 
 impl<'a> Connection {
     pub fn new(conn_type: ConnectionType) -> Connection {
+        let (events_tx, events_rx) = mpsc::channel();
+
         Connection {
             conn_type: conn_type,
             hash_data: HashData::default(),
@@ -57,6 +67,8 @@ impl<'a> Connection {
             seq: (0, 0),
             tx_queue: VecDeque::new(),
             channels: BTreeMap::new(),
+            events_rx: events_rx,
+            events_tx: events_tx,
         }
     }
 
@@ -67,22 +79,42 @@ impl<'a> Connection {
         let mut reader = BufReader::new(stream);
 
         loop {
-            let packet = self.recv(&mut reader)?;
-            let response = self.process(packet)?;
+            match self.events_rx.recv()
+            {
+                Ok(ConnectionEvent::ChannelData(id)) => {
+                    if let Some(ref mut channel) = self.channels.get_mut(&id) {
+                        let mut buf = [0; 4096];
+                        let count = channel.read(&mut buf)?;
+                        if count > 0 {
+                            let mut res = Packet::new(MessageType::ChannelData);
+                            res.write_uint32(channel.peer_id())?;
+                            res.write_bytes(&buf[..count])?;
+                        }
+                    }
+                }
+                Ok(ConnectionEvent::StreamData) => {
+                    let packet = self.recv(&mut reader)?;
+                    let response = self.process(packet)?;
 
-            let mut stream = reader.get_mut();
+                    let mut stream = reader.get_mut();
 
-            if let Some(packet) = response {
-                self.send(&mut stream, packet)?;
+                    if let Some(packet) = response {
+                        self.send(&mut stream, packet)?;
+                    }
+                }
+                Err(_) => {}
             }
 
             // Send additional packets from the queue
             let mut packets: Vec<Packet> = self.tx_queue.drain(..).collect();
+            let mut stream = reader.get_mut();
             for packet in packets.drain(..) {
                 self.send(&mut stream, packet)?;
             }
         }
     }
+
+
 
     fn recv(&mut self, mut stream: &mut Read) -> Result<Packet> {
         let packet = if let Some((ref mut c2s, _)) = self.encryption {
@@ -296,7 +328,13 @@ impl<'a> Connection {
             0
         };
 
-        let channel = Channel::new(id, peer_id, window_size, max_packet_size);
+        let channel = Channel::new(
+            id,
+            peer_id,
+            window_size,
+            max_packet_size,
+            self.events_tx.clone(),
+        );
 
         let mut res = Packet::new(MessageType::ChannelOpenConfirmation);
         res.write_uint32(peer_id)?;
@@ -304,7 +342,7 @@ impl<'a> Connection {
         res.write_uint32(channel.window_size())?;
         res.write_uint32(channel.max_packet_size())?;
 
-        debug!("Open {:?}", channel);
+        debug!("Open Channel {}", id);
 
         self.channels.insert(id, channel);
 
@@ -357,7 +395,7 @@ impl<'a> Connection {
         let data = reader.read_string()?;
 
         let mut channel = self.channels.get_mut(&channel_id).unwrap();
-        channel.data(data.as_slice())?;
+        channel.write(data.as_slice())?;
 
         Ok(None)
     }

@@ -2,6 +2,7 @@ extern crate ssh;
 extern crate log;
 
 use std::env;
+use std::error::Error;
 use std::fs::File;
 use std::io::{self, Write};
 use std::process;

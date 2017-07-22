@@ -1,10 +1,12 @@
 use std::io;
 use std::net::TcpListener;
+use std::os::unix::io::AsRawFd;
 use std::sync::Arc;
 use std::thread;
 
-use connection::{Connection, ConnectionType};
+use connection::{Connection, ConnectionEvent, ConnectionType};
 use public_key::KeyPair;
+use sys;
 
 pub struct ServerConfig {
     pub host: String,
@@ -38,7 +40,7 @@ impl Server {
                 let result = connection.run(&mut stream);
 
                 if let Some(error) = result.err() {
-                    println!("sshd: {}", error)
+                    println!("sshd: {}", error);
                 }
             });
         }

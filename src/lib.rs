@@ -9,8 +9,6 @@ extern crate syscall;
 #[cfg(not(target_os = "redox"))]
 extern crate libc;
 
-mod error;
-mod algorithm;
 mod packet;
 mod message;
 mod connection;
@@ -19,15 +17,17 @@ mod encryption;
 mod mac;
 mod channel;
 
+pub mod error;
+pub mod algorithm;
 pub mod public_key;
 pub mod server;
 
+pub use self::server::{Server, ServerConfig};
+
 #[cfg(target_os = "redox")]
-#[path = "sys/redox.rs"]
+#[path = "sys/redox/mod.rs"]
 pub mod sys;
 
 #[cfg(not(target_os = "redox"))]
-#[path = "sys/unix.rs"]
+#[path = "sys/linux/mod.rs"]
 pub mod sys;
-
-pub use self::server::{Server, ServerConfig};
