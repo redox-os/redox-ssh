@@ -86,10 +86,17 @@ impl Channel {
                 );
 
                 self.read_thread = Some(thread::spawn(move || {
+                    #[cfg(target_os = "redox")]
+                    use syscall::dup;
+                    #[cfg(target_os = "redox")]
+                    let master2 = unsafe { dup(master_fd, &[]).unwrap_or(!0) };
+
+                    #[cfg(not(target_os = "redox"))]
                     use libc::dup;
+                    #[cfg(not(target_os = "redox"))]
                     let master2 = unsafe { dup(master_fd) };
 
-                    println!("dup result: {}", dup as u32);
+                    println!("dup result: {}", master2 as u32);
                     let mut master = unsafe { File::from_raw_fd(master2) };
                     loop {
                         use std::str::from_utf8_unchecked;
