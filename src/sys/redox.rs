@@ -8,7 +8,7 @@ pub fn before_exec() -> Result<()> {
 
 pub fn fork() -> usize {
     extern crate syscall;
-    unsafe { syscall::clone(0).unwrap() }
+    unsafe { syscall::clone(syscall::CloneFlags::empty()).unwrap() }
 }
 
 pub fn set_winsize(fd: RawFd, row: u16, col: u16, xpixel: u16, ypixel: u16) {}
@@ -23,7 +23,7 @@ pub fn getpty() -> (RawFd, PathBuf) {
 
     let count = syscall::fpath(master, &mut buf).unwrap();
     (
-        master,
+        master as i32,
         PathBuf::from(unsafe {
             String::from_utf8_unchecked(Vec::from(&buf[..count]))
         }),

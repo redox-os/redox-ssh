@@ -25,13 +25,14 @@ doc = false
 [dependencies]
 byteorder = "^1.0"
 log = "^0.3"
-rust-crypto = "^0.2"
+num-bigint = "0.4"
 rand = "^0.3"
-num-bigint = { git = "https://github.com/rust-num/num" }
+rust-crypto = "^0.2"
+rustc-serialize = "=0.3.20"
 
 [target.'cfg(not(target_os = "redox"))'.dependencies]
 libc = "^0.2.26" 
 
 [target.'cfg(target_os = "redox")'.dependencies]
-redox_syscall = "0.1"
+redox_syscall = "0.2"
 

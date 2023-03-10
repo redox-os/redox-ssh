@@ -89,7 +89,7 @@ impl Channel {
                     #[cfg(target_os = "redox")]
                     use syscall::dup;
                     #[cfg(target_os = "redox")]
-                    let master2 = unsafe { dup(master_fd, &[]).unwrap_or(!0) };
+                    let master2 = unsafe { dup(master_fd as usize, &[]).unwrap_or(!0) };
 
                     #[cfg(not(target_os = "redox"))]
                     use libc::dup;
@@ -97,7 +97,7 @@ impl Channel {
                     let master2 = unsafe { dup(master_fd) };
 
                     println!("dup result: {}", master2 as u32);
-                    let mut master = unsafe { File::from_raw_fd(master2) };
+                    let mut master = unsafe { File::from_raw_fd(master2 as i32) };
                     loop {
                         use std::str::from_utf8_unchecked;
                         let mut buf = [0; 4096];
