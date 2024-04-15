@@ -1,7 +1,6 @@
 use std::fmt;
 use std::io::{self, BufReader, Read, Result, Write};
 use std::str::{self, FromStr};
-use std::string::ToString;
 
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 

@@ -1,5 +1,3 @@
-use std::convert::From;
-use std::error::Error;
 use std::fmt;
 use std::io;
 
@@ -17,22 +15,16 @@ pub enum ConnectionError {
 
 impl fmt::Display for ConnectionError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "connection error: {}", (self as &Error).description())
-    }
-}
-
-impl Error for ConnectionError {
-    fn description(&self) -> &str {
         use self::ConnectionError::*;
-        match self
+        write!(f, "connection error: {}", (match &self
         {
-            &IoError(_) => "io error",
-            &ProtocolError => "protocol error",
-            &NegotiationError => "negotiation error",
-            &KeyExchangeError => "key exchange error",
-            &KeyGenerationError => "key generation error",
-            &IntegrityError => "integrity error",
-        }
+            IoError(err) => format!("io error: {}", err),
+            ProtocolError => "protocol error".to_owned(),
+            NegotiationError => "negotiation error".to_owned(),
+            KeyExchangeError => "key exchange error".to_owned(),
+            KeyGenerationError => "key generation error".to_owned(),
+            IntegrityError => "integrity error".to_owned(),
+        }))
     }
 }
 

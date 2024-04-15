@@ -60,7 +60,7 @@ impl<'a> Connection {
         }
     }
 
-    pub fn run<S: Read + Write>(&mut self, mut stream: &mut S) -> Result<()> {
+    pub fn run<S: Read + Write>(&mut self, stream: &mut S) -> Result<()> {
         self.send_id(stream)?;
         self.read_id(stream)?;
 
@@ -334,7 +334,7 @@ impl<'a> Connection {
 
 
         if let Some(request) = request {
-            let mut channel = self.channels.get_mut(&channel_id).unwrap();
+            let channel = self.channels.get_mut(&channel_id).unwrap();
             channel.request(request);
         }
         else {
@@ -356,7 +356,7 @@ impl<'a> Connection {
         let channel_id = reader.read_uint32()?;
         let data = reader.read_string()?;
 
-        let mut channel = self.channels.get_mut(&channel_id).unwrap();
+        let channel = self.channels.get_mut(&channel_id).unwrap();
         channel.data(data.as_slice())?;
 
         Ok(None)
@@ -403,7 +403,7 @@ impl<'a> Connection {
         self.hash_data.client_kexinit = Some(packet.payload());
 
         // Create a random 16 byte cookie
-        use rand::{self, Rng};
+        use rand::Rng;
         let mut rng = rand::thread_rng();
         let cookie: Vec<u8> = rng.gen_iter::<u8>().take(16).collect();
 

@@ -6,7 +6,7 @@ use key_exchange::{KexResult, KeyExchange};
 use message::MessageType;
 use num_bigint::{BigInt, Sign};
 use packet::{Packet, ReadPacketExt, WritePacketExt};
-use rand::{self, Rng};
+use rand::Rng;
 
 const ECDH_KEX_INIT: u8 = 30;
 const ECDH_KEX_REPLY: u8 = 31;
