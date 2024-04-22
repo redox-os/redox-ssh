@@ -3,7 +3,7 @@ use std::io::ErrorKind::InvalidData;
 
 use crypto::ed25519;
 use public_key::{CryptoSystem, KeyPair};
-use rand::{self, Rng};
+use rand::Rng;
 
 pub static ED25519: CryptoSystem = CryptoSystem {
     id: "ed25519",
@@ -26,7 +26,7 @@ impl Ed25519KeyPair {
         let (private, public) = ed25519::keypair(&seed);
         Box::new(Ed25519KeyPair {
             private: Some(private),
-            public: public,
+            public,
         })
     }
 

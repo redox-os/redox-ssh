@@ -3,7 +3,6 @@ use std::os::unix::io::RawFd;
 use std::path::PathBuf;
 
 pub fn before_exec() -> Result<()> {
-    use libc;
     unsafe {
         libc::setsid();
         libc::ioctl(0, libc::TIOCSCTTY, 1);
@@ -12,12 +11,10 @@ pub fn before_exec() -> Result<()> {
 }
 
 pub fn fork() -> usize {
-    use libc;
     unsafe { libc::fork() as usize }
 }
 
 pub fn set_winsize(fd: RawFd, row: u16, col: u16, xpixel: u16, ypixel: u16) {
-    use libc;
     unsafe {
         let size = libc::winsize {
             ws_row: row,
@@ -30,7 +27,6 @@ pub fn set_winsize(fd: RawFd, row: u16, col: u16, xpixel: u16, ypixel: u16) {
 }
 
 pub fn getpty() -> (RawFd, PathBuf) {
-    use libc;
     use std::ffi::CStr;
     use std::fs::OpenOptions;
     use std::io::Error;
