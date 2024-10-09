@@ -1,0 +1,10 @@
+{
+    "lldb.displayFormat": "auto",
+    "lldb.showDisassembly": "never",
+    // "rust-analyzer.cargo.allTargets": true,
+    // "rust-analyzer.cargo.target": "x86_64-unknown-redox",
+    // "rust-analyzer.check.targets": [
+    //     "x86_64-unknown-redox",
+    //     "x86_64-unknown-linux-gnu"
+    // ]
+}

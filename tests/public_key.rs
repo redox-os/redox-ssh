@@ -1,12 +1,12 @@
-extern crate ssh;
 extern crate rand;
+extern crate ssh;
 
 use std::io::Cursor;
 
-use rand::Rng;
+use rand::RngCore;
 use ssh::public_key::{self, CryptoSystem, KeyPair};
 
-fn test_export_import(keypair: &Box<KeyPair>) -> Box<KeyPair> {
+fn test_export_import(keypair: &Box<dyn KeyPair>) -> Box<dyn KeyPair> {
     // Export the keypair to a vector and import it again
     let mut buffer = Vec::new();
     keypair.export(&mut buffer).unwrap();

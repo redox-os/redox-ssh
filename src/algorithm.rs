@@ -1,20 +1,19 @@
 use std::fmt;
 use std::str::FromStr;
 
-use error::{ConnectionError, ConnectionResult};
-use key_exchange::{self, KeyExchange};
+use crate::error::{ConnectionError, ConnectionResult};
+use crate::key_exchange::{self, KeyExchange};
 
 /// Slice of implemented key exchange algorithms, ordered by preference
-pub static KEY_EXCHANGE: &[KeyExchangeAlgorithm] =
-    &[
+pub static KEY_EXCHANGE: &[KeyExchangeAlgorithm] = &[
     KeyExchangeAlgorithm::CURVE25519_SHA256,
-//  KeyExchangeAlgorithm::DH_GROUP_EXCHANGE_SHA1,
+    // KeyExchangeAlgorithm::DH_GROUP_EXCHANGE_SHA1,
 ];
 
 /// Slice of implemented host key algorithms, ordered by preference
 pub static HOST_KEY: &[PublicKeyAlgorithm] = &[
     PublicKeyAlgorithm::SSH_ED25519,
-//  PublicKeyAlgorithm::SSH_RSA,
+    // PublicKeyAlgorithm::SSH_RSA,
 ];
 
 /// Slice of implemented encryption algorithms, ordered by preference
@@ -29,14 +28,16 @@ pub static COMPRESSION: &[CompressionAlgorithm] =
     &[CompressionAlgorithm::None, CompressionAlgorithm::Zlib];
 
 /// Find the best matching algorithm
-pub fn negotiate<A: PartialEq + Copy>(server: &[A], client: &[A])
-    -> ConnectionResult<A> {
+pub fn negotiate<A: PartialEq + Copy>(
+    server: &[A],
+    client: &[A],
+) -> ConnectionResult<A> {
     for algorithm in client.iter() {
         if server.iter().any(|a| a == algorithm) {
             return Ok(*algorithm);
         }
     }
-    Err(ConnectionError::NegotiationError)
+    Err(ConnectionError::Negotiation)
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -57,13 +58,12 @@ pub enum KeyExchangeAlgorithm {
 }
 
 impl KeyExchangeAlgorithm {
-    pub fn instance(&self) -> Option<Box<KeyExchange>> {
+    pub fn instance(&self) -> Option<Box<dyn KeyExchange>> {
         use self::KeyExchangeAlgorithm::*;
-        match self
-        {
-            &CURVE25519_SHA256 => Some(
-                Box::new(key_exchange::Curve25519::new()),
-            ),
+        match self {
+            &CURVE25519_SHA256 => {
+                Some(Box::new(key_exchange::Curve25519::new()))
+            }
             _ => None,
         }
     }
@@ -73,15 +73,14 @@ impl FromStr for KeyExchangeAlgorithm {
     type Err = ();
     fn from_str(s: &str) -> Result<KeyExchangeAlgorithm, ()> {
         use self::KeyExchangeAlgorithm::*;
-        match s
-        {
+        match s {
             "curve25519-sha256" => Ok(CURVE25519_SHA256),
             "ecdh-sha2-nistp256" => Ok(ECDH_SHA2_NISTP256),
             "ecdh-sha2-nistp384" => Ok(ECDH_SHA2_NISTP384),
             "ecdh-sha2-nistp521" => Ok(ECDH_SHA2_NISTP521),
-            "diffie-hellman-group-exchange-sha256" => Ok(
-                DH_GROUP_EXCHANGE_SHA256,
-            ),
+            "diffie-hellman-group-exchange-sha256" => {
+                Ok(DH_GROUP_EXCHANGE_SHA256)
+            }
             "diffie-hellman-group-exchange-sha1" => Ok(DH_GROUP_EXCHANGE_SHA1),
             "diffie-hellman-group16-sha512" => Ok(DH_GROUP16_SHA512),
             "diffie-hellman-group18-sha512" => Ok(DH_GROUP18_SHA512),
@@ -99,19 +98,18 @@ impl FromStr for KeyExchangeAlgorithm {
 impl fmt::Display for KeyExchangeAlgorithm {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         use self::KeyExchangeAlgorithm::*;
-        f.write_str(match self
-        {
-            &CURVE25519_SHA256 => "curve25519-sha256",
-            &ECDH_SHA2_NISTP256 => "ecdh-sha2-nistp256",
-            &ECDH_SHA2_NISTP384 => "ecdh-sha2-nistp384",
-            &ECDH_SHA2_NISTP521 => "ecdh-sha2-nistp521",
-            &DH_GROUP_EXCHANGE_SHA256 => "diffie-hellman-group-exchange-sha256",
-            &DH_GROUP_EXCHANGE_SHA1 => "diffie-hellman-group-exchange-sha1",
-            &DH_GROUP16_SHA512 => "diffie-hellman-group16-sha512",
-            &DH_GROUP18_SHA512 => "diffie-hellman-group18-sha512",
-            &DH_GROUP14_SHA256 => "diffie-hellman-group14-sha256",
-            &DH_GROUP14_SHA1 => "diffie-hellman-group14-sha1",
-            &EXT_INFO_C => "ext-info-c",
+        f.write_str(match *self {
+            CURVE25519_SHA256 => "curve25519-sha256",
+            ECDH_SHA2_NISTP256 => "ecdh-sha2-nistp256",
+            ECDH_SHA2_NISTP384 => "ecdh-sha2-nistp384",
+            ECDH_SHA2_NISTP521 => "ecdh-sha2-nistp521",
+            DH_GROUP_EXCHANGE_SHA256 => "diffie-hellman-group-exchange-sha256",
+            DH_GROUP_EXCHANGE_SHA1 => "diffie-hellman-group-exchange-sha1",
+            DH_GROUP16_SHA512 => "diffie-hellman-group16-sha512",
+            DH_GROUP18_SHA512 => "diffie-hellman-group18-sha512",
+            DH_GROUP14_SHA256 => "diffie-hellman-group14-sha256",
+            DH_GROUP14_SHA1 => "diffie-hellman-group14-sha1",
+            EXT_INFO_C => "ext-info-c",
         })
     }
 }
@@ -132,8 +130,7 @@ impl FromStr for PublicKeyAlgorithm {
     type Err = ();
     fn from_str(s: &str) -> Result<PublicKeyAlgorithm, ()> {
         use self::PublicKeyAlgorithm::*;
-        match s
-        {
+        match s {
             "ssh-rsa" => Ok(SSH_RSA),
             "rsa-sha2-256" => Ok(RSA_SHA2_256),
             "rsa-sha2-512" => Ok(RSA_SHA2_512),
@@ -152,15 +149,14 @@ impl FromStr for PublicKeyAlgorithm {
 impl fmt::Display for PublicKeyAlgorithm {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         use self::PublicKeyAlgorithm::*;
-        f.write_str(match self
-        {
-            &SSH_RSA => "ssh-rsa",
-            &RSA_SHA2_256 => "rsa-sha2-256",
-            &RSA_SHA2_512 => "rsa-sha2-512",
-            &ECDSA_SHA2_NISTP256 => "ecdsa-sha2-nistp256",
-            &ECDSA_SHA2_NISTP384 => "ecdsa-sha2-nistp384",
-            &ECDSA_SHA2_NISTP521 => "ecdsa-sha2-nistp521",
-            &SSH_ED25519 => "ssh-ed25519",
+        f.write_str(match *self {
+            SSH_RSA => "ssh-rsa",
+            RSA_SHA2_256 => "rsa-sha2-256",
+            RSA_SHA2_512 => "rsa-sha2-512",
+            ECDSA_SHA2_NISTP256 => "ecdsa-sha2-nistp256",
+            ECDSA_SHA2_NISTP384 => "ecdsa-sha2-nistp384",
+            ECDSA_SHA2_NISTP521 => "ecdsa-sha2-nistp521",
+            SSH_ED25519 => "ssh-ed25519",
         })
     }
 }
@@ -181,8 +177,7 @@ impl FromStr for EncryptionAlgorithm {
     type Err = ();
     fn from_str(s: &str) -> Result<EncryptionAlgorithm, ()> {
         use self::EncryptionAlgorithm::*;
-        match s
-        {
+        match s {
             "aes128-ctr" => Ok(AES128_CTR),
             "aes128-cbc" => Ok(AES128_CBC),
             "aes192-ctr" => Ok(AES192_CTR),
@@ -201,15 +196,14 @@ impl FromStr for EncryptionAlgorithm {
 impl fmt::Display for EncryptionAlgorithm {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         use self::EncryptionAlgorithm::*;
-        f.write_str(match self
-        {
-            &AES128_CTR => "aes128-ctr",
-            &AES128_CBC => "aes128-cbc",
-            &AES192_CTR => "aes192-ctr",
-            &AES192_CBC => "aes192-cbc",
-            &AES256_CTR => "aes256-ctr",
-            &AES256_CBC => "aes256-cbc",
-            &EncryptionAlgorithm::None => "none",
+        f.write_str(match *self {
+            AES128_CTR => "aes128-ctr",
+            AES128_CBC => "aes128-cbc",
+            AES192_CTR => "aes192-ctr",
+            AES192_CBC => "aes192-cbc",
+            AES256_CTR => "aes256-ctr",
+            AES256_CBC => "aes256-cbc",
+            EncryptionAlgorithm::None => "none",
         })
     }
 }
@@ -227,8 +221,7 @@ impl FromStr for MacAlgorithm {
     type Err = ();
     fn from_str(s: &str) -> Result<MacAlgorithm, ()> {
         use self::MacAlgorithm::*;
-        match s
-        {
+        match s {
             "hmac-sha1" => Ok(HMAC_SHA1),
             "hmac-sha2-256" => Ok(HMAC_SHA2_256),
             "hmac-sha2-512" => Ok(HMAC_SHA2_512),
@@ -244,12 +237,11 @@ impl FromStr for MacAlgorithm {
 impl fmt::Display for MacAlgorithm {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         use self::MacAlgorithm::*;
-        f.write_str(match self
-        {
-            &HMAC_SHA1 => "hmac-sha1",
-            &HMAC_SHA2_256 => "hmac-sha2-256",
-            &HMAC_SHA2_512 => "hmac-sha2-512",
-            &MacAlgorithm::None => "none",
+        f.write_str(match *self {
+            HMAC_SHA1 => "hmac-sha1",
+            HMAC_SHA2_256 => "hmac-sha2-256",
+            HMAC_SHA2_512 => "hmac-sha2-512",
+            MacAlgorithm::None => "none",
         })
     }
 }
@@ -263,8 +255,7 @@ pub enum CompressionAlgorithm {
 impl FromStr for CompressionAlgorithm {
     type Err = ();
     fn from_str(s: &str) -> Result<CompressionAlgorithm, ()> {
-        match s
-        {
+        match s {
             "zlib" => Ok(CompressionAlgorithm::Zlib),
             "none" => Ok(CompressionAlgorithm::None),
             _ => {
@@ -277,10 +268,9 @@ impl FromStr for CompressionAlgorithm {
 
 impl fmt::Display for CompressionAlgorithm {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.write_str(match self
-        {
-            &CompressionAlgorithm::Zlib => "zlib",
-            &CompressionAlgorithm::None => "none",
+        f.write_str(match *self {
+            CompressionAlgorithm::Zlib => "zlib",
+            CompressionAlgorithm::None => "none",
         })
     }
 }

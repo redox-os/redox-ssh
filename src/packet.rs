@@ -3,9 +3,9 @@ use std::io::{self, BufReader, Read, Result, Write};
 use std::str::{self, FromStr};
 
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
-
-use message::MessageType;
 use num_bigint::BigInt;
+
+use crate::message::MessageType;
 
 pub enum Packet {
     Raw(Vec<u8>, usize),
@@ -18,11 +18,11 @@ impl Packet {
     }
 
     pub fn msg_type(&self) -> MessageType {
-        match self
-        {
-            &Packet::Raw(ref data, _) => data[5],
-            &Packet::Payload(ref data) => data[0],
-        }.into()
+        match self {
+            Packet::Raw(data, _) => data[5],
+            Packet::Payload(data) => data[0],
+        }
+        .into()
     }
 
     pub fn read_from<R: io::Read>(stream: &mut R) -> Result<Packet> {
@@ -48,19 +48,18 @@ impl Packet {
     }
 
     pub fn write_to<W: io::Write>(&self, stream: &mut W) -> Result<()> {
-        match self
-        {
-            &Packet::Raw(ref data, _) => {
+        match self {
+            Packet::Raw(data, _) => {
                 stream.write_all(data)?;
                 stream.flush()
             }
-            &Packet::Payload(ref payload) => {
+            Packet::Payload(payload) => {
                 let padding_len = self.padding_len();
                 let packet_len = payload.len() + padding_len + 1;
 
                 stream.write_u32::<BigEndian>(packet_len as u32)?;
                 stream.write_u8(padding_len as u8)?;
-                stream.write_all(&payload)?;
+                stream.write_all(payload)?;
                 stream.write_all(&[0u8; 255][..padding_len])?;
 
                 stream.flush()
@@ -69,24 +68,21 @@ impl Packet {
     }
 
     pub fn payload(self) -> Vec<u8> {
-        match self
-        {
+        match self {
             Packet::Raw(data, payload_len) => data[5..payload_len + 5].to_vec(),
             Packet::Payload(payload) => payload,
         }
     }
 
-    pub fn data<'a>(&'a self) -> &'a [u8] {
-        match self
-        {
-            &Packet::Raw(ref data, _) => &data,
-            &Packet::Payload(ref payload) => &payload,
+    pub fn data(&self) -> &[u8] {
+        match self {
+            Packet::Raw(data, _) => data,
+            Packet::Payload(payload) => payload,
         }
     }
 
-    pub fn to_raw(self) -> Result<Packet> {
-        match self
-        {
+    pub fn into_raw(self) -> Result<Packet> {
+        match self {
             Packet::Raw(_, _) => Ok(self),
             Packet::Payload(ref payload) => {
                 let mut buf = Vec::with_capacity(payload.len());
@@ -96,23 +92,21 @@ impl Packet {
         }
     }
 
-    pub fn reader<'a>(&'a self) -> BufReader<&'a [u8]> {
-        match self
-        {
+    pub fn reader(&self) -> BufReader<&[u8]> {
+        match self {
             &Packet::Raw(ref data, payload_len) => {
                 BufReader::new(&data.as_slice()[6..payload_len + 5])
             }
-            &Packet::Payload(ref payload) => {
+            Packet::Payload(payload) => {
                 BufReader::new(&payload.as_slice()[1..])
             }
         }
     }
 
     pub fn payload_len(&self) -> usize {
-        match self
-        {
+        match self {
             &Packet::Raw(_, payload_len) => payload_len,
-            &Packet::Payload(ref payload) => payload.len(),
+            Packet::Payload(payload) => payload.len(),
         }
     }
 
@@ -134,10 +128,9 @@ impl Packet {
 
 impl Write for Packet {
     fn write(&mut self, buf: &[u8]) -> Result<usize> {
-        match self
-        {
-            &mut Packet::Payload(ref mut payload) => payload.write(buf),
-            &mut Packet::Raw(ref mut data, ref mut payload_len) => {
+        match *self {
+            Packet::Payload(ref mut payload) => payload.write(buf),
+            Packet::Raw(ref mut data, ref mut payload_len) => {
                 let count = data.write(buf)?;
                 *payload_len += count;
                 Ok(count)
@@ -163,7 +156,7 @@ pub trait ReadPacketExt: ReadBytesExt {
     }
 
     fn read_uint32(&mut self) -> Result<u32> {
-        Ok(self.read_u32::<BigEndian>()?)
+        self.read_u32::<BigEndian>()
     }
 
     fn read_bytes(&mut self, len: usize) -> Result<Vec<u8>> {
@@ -186,12 +179,10 @@ pub trait ReadPacketExt: ReadBytesExt {
 
     fn read_enum_list<T: FromStr>(&mut self) -> Result<Vec<T>> {
         let string = self.read_utf8()?;
-        Ok(
-            string
-                .split(",")
-                .filter_map(|l| T::from_str(&l).ok())
-                .collect(),
-        )
+        Ok(string
+            .split(",")
+            .filter_map(|l| T::from_str(l).ok())
+            .collect())
     }
 
     fn read_name_list(&mut self) -> Result<Vec<String>> {
@@ -231,20 +222,20 @@ pub trait WritePacketExt: WriteBytesExt {
     }
 
     fn write_uint32(&mut self, value: u32) -> Result<()> {
-        self.write_u32::<BigEndian>(value as u32)
+        self.write_u32::<BigEndian>(value)
     }
 
     fn write_list<T: ToString>(&mut self, list: &[T]) -> Result<()> {
         let mut string = String::new();
-        let mut iter = list.iter();
+        let iter = list.iter();
 
-        while let Some(item) = iter.next() {
+        for item in iter {
             if !string.is_empty() {
                 string += ",";
             }
             string += &*item.to_string();
         }
-        self.write_string(&*string)
+        self.write_string(&string)
     }
 }
 

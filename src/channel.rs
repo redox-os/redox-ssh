@@ -1,55 +1,63 @@
-use std::fs::{File, OpenOptions};
-use std::io::{self, Read, Write};
-use std::os::unix::io::{FromRawFd, IntoRawFd, RawFd};
-use std::os::unix::process::CommandExt;
+mod pty;
+mod shell;
+
+use std::fs::File;
+use std::io::{self, BufRead, Read, Write};
+use std::os::unix::io::RawFd;
 use std::path::PathBuf;
-use std::process::{self, Stdio};
-use std::thread::{self, JoinHandle};
-use sys;
+use std::process;
+use std::thread::JoinHandle;
+
+pub use pty::PtyConfig;
+use shell::PipeContainer;
 
 pub type ChannelId = u32;
 
 #[derive(Debug)]
+/// TODO: Split into channel types, i.e. `PtyChannel` and `ShellChannel`
 pub struct Channel {
     id: ChannelId,
     peer_id: ChannelId,
     process: Option<process::Child>,
     pty: Option<(RawFd, PathBuf)>,
+    pipes: Option<PipeContainer>,
     master: Option<File>,
     window_size: u32,
     peer_window_size: u32,
     max_packet_size: u32,
     read_thread: Option<JoinHandle<()>>,
+    env: Vec<(String, String)>,
+    executable: String,
 }
 
 #[derive(Debug)]
 pub enum ChannelRequest {
-    Pty {
-        term: String,
-        chars: u16,
-        rows: u16,
-        pixel_width: u16,
-        pixel_height: u16,
-        modes: Vec<u8>,
-    },
+    Pty(PtyConfig),
     Shell,
+    Env(String, String),
+    Exec(String),
 }
 
 impl Channel {
     pub fn new(
-        id: ChannelId, peer_id: ChannelId, peer_window_size: u32,
-        max_packet_size: u32
-    ) -> Channel {
-        Channel {
-            id: id,
-            peer_id: peer_id,
+        id: ChannelId,
+        peer_id: ChannelId,
+        peer_window_size: u32,
+        max_packet_size: u32,
+    ) -> Self {
+        Self {
+            id,
+            peer_id,
             process: None,
             master: None,
             pty: None,
+            pipes: None,
             window_size: peer_window_size,
-            peer_window_size: peer_window_size,
-            max_packet_size: max_packet_size,
+            peer_window_size,
+            max_packet_size,
             read_thread: None,
+            env: Vec::new(),
+            executable: "/bin/sh".to_string(),
         }
     }
 
@@ -65,100 +73,60 @@ impl Channel {
         self.max_packet_size
     }
 
-    pub fn request(&mut self, request: ChannelRequest) {
-        match request
-        {
-            ChannelRequest::Pty {
-                chars,
-                rows,
-                pixel_width,
-                pixel_height,
-                ..
-            } => {
-                let (master_fd, tty_path) = sys::getpty();
-
-                sys::set_winsize(
-                    master_fd,
-                    chars,
-                    rows,
-                    pixel_width,
-                    pixel_height,
-                );
-
-                self.read_thread = Some(thread::spawn(move || {
-                    #[cfg(target_os = "redox")]
-                    use syscall::dup;
-                    #[cfg(target_os = "redox")]
-                    let master2 = unsafe { dup(master_fd as usize, &[]).unwrap_or(!0) };
-
-                    #[cfg(not(target_os = "redox"))]
-                    use libc::dup;
-                    #[cfg(not(target_os = "redox"))]
-                    let master2 = unsafe { dup(master_fd) };
-
-                    println!("dup result: {}", master2 as u32);
-                    let mut master = unsafe { File::from_raw_fd(master2 as i32) };
-                    loop {
-                        use std::str::from_utf8_unchecked;
-                        let mut buf = [0; 4096];
-                        let count = master.read(&mut buf).unwrap();
-                        if count == 0 {
-                            break;
-                        }
-                        println!("Read: {}", unsafe {
-                            from_utf8_unchecked(&buf[0..count])
-                        });
-                    }
-
-                    println!("Quitting read thread.");
-                }));
-
-                self.pty = Some((master_fd, tty_path));
-                self.master = Some(unsafe { File::from_raw_fd(master_fd) });
-            }
-            ChannelRequest::Shell => {
-                if let Some(&(_, ref tty_path)) = self.pty.as_ref() {
-                    let stdin = OpenOptions::new()
-                        .read(true)
-                        .write(true)
-                        .open(&tty_path)
-                        .unwrap()
-                        .into_raw_fd();
-
-                    let stdout = OpenOptions::new()
-                        .read(true)
-                        .write(true)
-                        .open(&tty_path)
-                        .unwrap()
-                        .into_raw_fd();
-
-                    let stderr = OpenOptions::new()
-                        .read(true)
-                        .write(true)
-                        .open(&tty_path)
-                        .unwrap()
-                        .into_raw_fd();
-
-                    process::Command::new("login")
-                        .stdin(unsafe { Stdio::from_raw_fd(stdin) })
-                        .stdout(unsafe { Stdio::from_raw_fd(stdout) })
-                        .stderr(unsafe { Stdio::from_raw_fd(stderr) })
-                        .before_exec(|| sys::before_exec())
-                        .spawn()
-                        .unwrap();
-                }
+    pub fn handle_request(&mut self, request: ChannelRequest) {
+        debug!("Channel Request: {:?}", request);
+        match request {
+            ChannelRequest::Pty(ref pty) => self.setup_tty(pty),
+            ChannelRequest::Shell => self.setup_shell(),
+            ChannelRequest::Env(key, value) => self.env.push((key, value)),
+            ChannelRequest::Exec(executable) => {
+                self.executable = executable;
+                self.setup_shell();
             }
         }
-        debug!("Channel Request: {:?}", request);
     }
 
-    pub fn data(&mut self, data: &[u8]) -> io::Result<()> {
+    /// Writes `data` **to** this channel;
+    pub fn write_data(&mut self, data: &[u8]) -> io::Result<()> {
         if let Some(ref mut master) = self.master {
             master.write_all(data)?;
             master.flush()
         }
+        else if let Some(PipeContainer { ref mut stdin, .. }) = self.pipes {
+            stdin.write_all(data)?;
+            stdin.flush()
+        }
         else {
             Ok(())
+        }
+    }
+
+    /// Reads data **from** this channel and writes it **to** the buffer/.
+    pub fn read_pty_master(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        if let Some(ref mut master) = self.master {
+            master.read(buf)
+        }
+        else {
+            Ok(0)
+        }
+    }
+
+    /// Reads data **from** this channel and writes it **to** the buffer/.
+    pub fn read_stdout(&mut self, buf: &mut String) -> io::Result<usize> {
+        if let Some(pipes) = &mut self.pipes {
+            pipes.stdout.read_line(buf)
+        }
+        else {
+            Ok(0)
+        }
+    }
+
+    pub fn read_stderr(&mut self, buf: &mut String) -> io::Result<usize> {
+        if let Some(pipes) = &mut self.pipes {
+            pipes.stderr.read_line(buf)
+        }
+        else {
+            Ok(0)
         }
     }
 }

@@ -1,7 +1,8 @@
 use crypto::hmac::Hmac as rcHmac;
 use crypto::mac::Mac;
 use crypto::sha2::Sha256;
-use mac::MacAlgorithm;
+
+use crate::mac::MacAlgorithm;
 
 pub struct Hmac {
     hmac: Box<rcHmac<Sha256>>,
@@ -24,7 +25,7 @@ impl MacAlgorithm for Hmac {
             ((seq & 0xff000000) >> 24) as u8,
             ((seq & 0x00ff0000) >> 16) as u8,
             ((seq & 0x0000ff00) >> 8) as u8,
-            ((seq & 0x000000ff)) as u8,
+            (seq & 0x000000ff) as u8,
         ];
 
         self.hmac.input(sequence);

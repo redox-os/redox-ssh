@@ -1,10 +1,10 @@
 use crypto::aes::{KeySize, ctr};
 use crypto::symmetriccipher::SynchronousStreamCipher;
 
-use encryption::Encryption;
+use crate::encryption::Encryption;
 
 pub struct AesCtr {
-    cipher: Box<SynchronousStreamCipher + 'static>,
+    cipher: Box<dyn SynchronousStreamCipher + 'static>,
 }
 
 impl AesCtr {

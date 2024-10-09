@@ -1,4 +1,4 @@
-image: "redoxos/redoxer"
+image: "docker.io/redoxos/redoxer"
 
 stages:
     - build
@@ -17,3 +17,17 @@ test:redox:
     dependencies:
         - build:redox
     script: redoxer test --verbose
+
+build:linux:
+    stage: build
+    image: docker.io/library/rust:alpine
+    script:
+        - apk add musl-dev
+        - cargo build --verbose
+
+test:linux:
+    stage: test
+    image: docker.io/library/rust:alpine
+    dependencies:
+        - build:linux
+    script: cargo test --verbose

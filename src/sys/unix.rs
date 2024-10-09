@@ -1,5 +1,5 @@
 use std::io::Result;
-use std::os::unix::io::RawFd;
+use std::os::fd::{AsRawFd, RawFd};
 use std::path::PathBuf;
 
 pub fn before_exec() -> Result<()> {
@@ -68,4 +68,14 @@ pub fn getpty() -> (RawFd, PathBuf) {
         )
     };
     (master_fd, tty_path)
+}
+
+/// Sets the file descriptor to non-blocking mode.
+/// This uses the **`unsafe`** keyword
+pub fn non_blockify_reader(obj: &impl AsRawFd) {
+    use libc::{fcntl, F_GETFL, F_SETFL, O_NONBLOCK};
+
+    let fd = obj.as_raw_fd();
+    let flags = unsafe { fcntl(fd, F_GETFL) };
+    unsafe { fcntl(fd, F_SETFL, flags | O_NONBLOCK) };
 }

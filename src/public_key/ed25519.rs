@@ -1,9 +1,14 @@
-use std::io::{self, Read, Write};
 use std::io::ErrorKind::InvalidData;
+use std::io::{self, Read, Write};
 
-use crypto::ed25519;
-use public_key::{CryptoSystem, KeyPair};
-use rand::Rng;
+use ed25519_dalek::ed25519::signature::SignerMut;
+use ed25519_dalek::{SecretKey, Signature, SigningKey, VerifyingKey};
+use rand::rngs::OsRng;
+// use crypto::ed25519;
+
+use crate::public_key::{
+    CryptoSystem, KeyPair, KeyPairIdValidationError, SigningError,
+};
 
 pub static ED25519: CryptoSystem = CryptoSystem {
     id: "ed25519",
@@ -13,52 +18,58 @@ pub static ED25519: CryptoSystem = CryptoSystem {
 };
 
 struct Ed25519KeyPair {
-    private: Option<[u8; 64]>,
-    public: [u8; 32],
+    // This should be 32 bytes as mandated for [ed25519](https://www.rfc-editor.org/rfc/rfc8032#section-5.1.5)
+    private: Option<SigningKey>, //[u8; 64]>,
+    public: VerifyingKey,        // [u8; 32],
 }
 
 impl Ed25519KeyPair {
-    fn generate(_: Option<u32>) -> Box<KeyPair> {
-        let mut seed = [0u8; 32];
-        let mut rng = rand::thread_rng();
-        rng.fill_bytes(&mut seed);
+    fn generate(_: Option<u32>) -> Box<dyn KeyPair> {
+        let mut csprng = OsRng;
+        let private: SigningKey = SigningKey::generate(&mut csprng);
+        let public: VerifyingKey = private.verifying_key();
 
-        let (private, public) = ed25519::keypair(&seed);
         Box::new(Ed25519KeyPair {
             private: Some(private),
             public,
         })
     }
 
-    fn import(mut r: &mut Read) -> io::Result<Box<KeyPair>> {
-        use packet::ReadPacketExt;
+    fn import(mut r: &mut dyn Read) -> io::Result<Box<dyn KeyPair>> {
+        use crate::packet::ReadPacketExt;
 
         if r.read_utf8()? != "ssh-ed25519" {
-            return Err(io::Error::new(InvalidData, "not a ED25519 key"));
+            return Err(io::Error::new(
+                InvalidData,
+                "Not a ED25519 key (in custom format), invalid header",
+            ));
         }
 
         if r.read_uint32()? != 32 {
-            return Err(io::Error::new(InvalidData, "invalid ED25519 key"));
+            return Err(io::Error::new(InvalidData, "Invalid ED25519 key (in custom format), verifying key length is invalid"));
         }
 
         let mut public = [0u8; 32];
         r.read_exact(&mut public)?;
+        let public = VerifyingKey::from_bytes(&public)
+            .expect("Failed to construct verifying keys from the bytes read"); // TODO
 
-        if r.read_uint32()? != 64 {
-            return Err(io::Error::new(InvalidData, "invalid ED25519 key"));
+        if r.read_uint32()? != 32 {
+            return Err(io::Error::new(InvalidData, "Invalid ED25519 key (in custom format), secret key length is invalid"));
         }
 
-        let mut private = [0u8; 64];
+        let mut private: SecretKey = [0u8; 32];
         r.read_exact(&mut private)?;
+        let private = SigningKey::from_bytes(&private);
 
         Ok(Box::new(Ed25519KeyPair {
-            public: public,
+            public,
             private: Some(private),
         }))
     }
 
-    fn read_public(mut r: &mut Read) -> io::Result<Box<KeyPair>> {
-        use packet::ReadPacketExt;
+    fn read_public(mut r: &mut dyn Read) -> io::Result<Box<dyn KeyPair>> {
+        use crate::packet::ReadPacketExt;
 
         if r.read_uint32()? != 32 {
             return Err(io::Error::new(InvalidData, "invalid ED25519 key"));
@@ -66,10 +77,11 @@ impl Ed25519KeyPair {
 
         let mut public = [0u8; 32];
         r.read_exact(&mut public)?;
+        let public = VerifyingKey::from_bytes(&public).unwrap(); // TODO
 
         Ok(Box::new(Ed25519KeyPair {
             private: None,
-            public: public,
+            public,
         }))
     }
 }
@@ -83,47 +95,66 @@ impl KeyPair for Ed25519KeyPair {
         self.private.is_some()
     }
 
-    fn verify(&self, data: &[u8], signature: &[u8]) -> Result<bool, ()> {
-        use packet::ReadPacketExt;
+    fn verify(
+        &self,
+        data: &[u8],
+        signature: &[u8],
+    ) -> Result<bool, KeyPairIdValidationError> {
+        use crate::packet::ReadPacketExt;
         use std::io::Cursor;
 
-        let mut reader = Cursor::new(signature);
-        let id = reader.read_string().unwrap_or(vec![]);
+        const EXPECTED_ID: &[u8] = b"ssh-ed25519";
 
-        if id == b"ssh-ed25519" {
+        let mut reader = Cursor::new(signature);
+        let received_id = reader.read_string().unwrap_or_default();
+
+        if received_id == EXPECTED_ID {
             if let Ok(sig) = reader.read_string() {
-                return Ok(ed25519::verify(data, &self.public, sig.as_slice()));
+                // TODO: .read_string() {
+                let sig_array: &[u8; 64] = sig
+                    .as_slice()
+                    .try_into()
+                    .expect("slice with incorrect length"); // TODO
+                let sig = Signature::from_bytes(sig_array); // TODO
+                let res = self.public.verify_strict(data, &sig);
+                return Ok(res.is_ok());
+                // return Ok(ed25519::verify(data, &self.public,
+                // sig.as_slice()));
             }
         }
-        Err(())
+        Err(KeyPairIdValidationError {
+            received_id,
+            expected_id: EXPECTED_ID,
+        })
     }
 
-    fn sign(&self, data: &[u8]) -> Result<Vec<u8>, ()> {
-        use packet::WritePacketExt;
-        if let Some(private_key) = self.private {
+    fn sign(&self, data: &[u8]) -> Result<Vec<u8>, SigningError> {
+        use crate::packet::WritePacketExt;
+        if let Some(mut private_key) = self.private.clone() {
             let mut result = Vec::new();
-            let sig = ed25519::signature(data, &private_key);
-            result.write_string("ssh-ed25519").or(Err(()))?;
-            result.write_bytes(&sig).or(Err(()))?;
+            let sig = private_key.sign(data);
+            // let sig = ed25519::signature(data, &private_key);
+            result.write_string("ssh-ed25519")?;
+            result.write_bytes(&sig.to_bytes())?;
             Ok(result)
         }
         else {
-            Err(())
+            Err(SigningError::NoPrivateKey)
         }
     }
 
-    fn write_public(&self, w: &mut Write) -> io::Result<()> {
-        use packet::WritePacketExt;
+    fn write_public(&self, w: &mut dyn Write) -> io::Result<()> {
+        use crate::packet::WritePacketExt;
         w.write_string("ssh-ed25519")?;
-        w.write_bytes(&self.public)
+        w.write_bytes(self.public.as_bytes())
     }
 
-    fn export(&self, w: &mut Write) -> io::Result<()> {
-        use packet::WritePacketExt;
+    fn export(&self, w: &mut dyn Write) -> io::Result<()> {
+        use crate::packet::WritePacketExt;
         w.write_string("ssh-ed25519")?;
-        w.write_bytes(&self.public)?;
-        if let Some(private_key) = self.private {
-            w.write_bytes(&private_key)?;
+        w.write_bytes(self.public.as_bytes())?;
+        if let Some(private_key) = &self.private {
+            w.write_bytes(private_key.as_bytes())?;
         }
         Ok(())
     }

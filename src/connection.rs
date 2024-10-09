@@ -1,15 +1,18 @@
 use std::collections::{BTreeMap, VecDeque};
 use std::io::{self, BufReader, Read, Write};
+use std::os::fd::AsRawFd;
 use std::sync::Arc;
 
-use channel::{Channel, ChannelId, ChannelRequest};
-use encryption::{AesCtr, Decryptor, Encryption};
-use error::{ConnectionError, ConnectionResult as Result};
-use key_exchange::{KexResult, KeyExchange};
-use mac::{Hmac, MacAlgorithm};
-use message::MessageType;
-use packet::{Packet, ReadPacketExt, WritePacketExt};
-use server::ServerConfig;
+use rand::distributions::Standard;
+
+use crate::channel::{Channel, ChannelId, ChannelRequest, PtyConfig};
+use crate::encryption::{AesCtr, Decryptor, Encryption};
+use crate::error::{ConnectionError, ConnectionResult as Result};
+use crate::key_exchange::{KexResult, KeyExchange};
+use crate::mac::{Hmac, MacAlgorithm};
+use crate::message::MessageType;
+use crate::packet::{Packet, ReadPacketExt, WritePacketExt};
+use crate::server::ServerConfig;
 
 #[derive(PartialEq)]
 enum ConnectionState {
@@ -35,19 +38,19 @@ pub struct Connection {
     pub conn_type: ConnectionType,
     pub hash_data: HashData,
     state: ConnectionState,
-    key_exchange: Option<Box<KeyExchange>>,
+    key_exchange: Option<Box<dyn KeyExchange>>,
     session_id: Option<Vec<u8>>,
-    encryption: Option<(Box<Encryption>, Box<Encryption>)>,
-    mac: Option<(Box<MacAlgorithm>, Box<MacAlgorithm>)>,
+    encryption: Option<(Box<dyn Encryption>, Box<dyn Encryption>)>,
+    mac: Option<(Box<dyn MacAlgorithm>, Box<dyn MacAlgorithm>)>,
     seq: (u32, u32),
     tx_queue: VecDeque<Packet>,
     channels: BTreeMap<ChannelId, Channel>,
 }
 
-impl<'a> Connection {
+impl Connection {
     pub fn new(conn_type: ConnectionType) -> Connection {
         Connection {
-            conn_type: conn_type,
+            conn_type,
             hash_data: HashData::default(),
             state: ConnectionState::Initial,
             key_exchange: None,
@@ -60,16 +63,30 @@ impl<'a> Connection {
         }
     }
 
-    pub fn run<S: Read + Write>(&mut self, stream: &mut S) -> Result<()> {
+    pub fn run<S: Read + Write + AsRawFd>(
+        &mut self,
+        stream: &mut S,
+    ) -> Result<()> {
         self.send_id(stream)?;
         self.read_id(stream)?;
 
+        crate::sys::non_blockify_reader(stream);
         let mut reader = BufReader::new(stream);
 
         loop {
-            let packet = self.recv(&mut reader)?;
-            let response = self.process(packet)?;
+            std::thread::sleep(std::time::Duration::from_millis(1)); // TODO: REMOVE: debugging
+            let response = match self.recv(&mut reader) {
+                Ok(packet) => self.process_packet(packet)?,
+                Err(ConnectionError::Io(ref io_err))
+                    if io_err.kind() == io::ErrorKind::WouldBlock =>
+                {
+                    None
+                }
+                Err(err) => return Err(err),
+            };
+            // let response = self.process_packet(packet)?;
 
+            // Take back ownership of the stream
             let mut stream = reader.get_mut();
 
             if let Some(packet) = response {
@@ -78,20 +95,51 @@ impl<'a> Connection {
 
             // Send additional packets from the queue
             let mut packets: Vec<Packet> = self.tx_queue.drain(..).collect();
+            // Include packets from command output
+            // TODO: Consider pushing to `tx_queue`?
+            for (_, channel) in self.channels.iter_mut() {
+                let mut buf = String::with_capacity(1024);
+                if channel
+                    .read_pty_master(unsafe { buf.as_mut_vec() })
+                    .unwrap_or(0)
+                    != 0
+                {
+                    let mut packet = Packet::new(MessageType::ChannelData);
+                    packet.write_uint32(channel.id())?;
+                    packet.write_string(&buf)?;
+                    info!("AHAA! {:?}", &packet);
+                    packets.push(packet)
+                }
+                if channel.read_stdout(&mut buf).unwrap_or(0) != 0 {
+                    let mut packet = Packet::new(MessageType::ChannelData);
+                    packet.write_uint32(channel.id())?;
+                    packet.write_string(&buf)?;
+                    packets.push(packet)
+                }
+                if channel.read_stderr(&mut buf).unwrap_or(0) != 0 {
+                    let mut packet =
+                        Packet::new(MessageType::ChannelExtendedData);
+                    packet.write_uint32(channel.id())?;
+                    packet.write_uint32(1)?; // Data Type Code for stderr
+                    packet.write_string(&buf)?;
+                    packets.push(packet)
+                }
+            }
+            // Actually send the queued packets
             for packet in packets.drain(..) {
                 self.send(&mut stream, packet)?;
             }
         }
     }
 
-    fn recv(&mut self, mut stream: &mut Read) -> Result<Packet> {
+    fn recv(&mut self, mut stream: &mut dyn Read) -> Result<Packet> {
         let packet = if let Some((ref mut c2s, _)) = self.encryption {
             let mut decryptor = Decryptor::new(&mut **c2s, &mut stream);
-            Packet::read_from(&mut decryptor)?
+            Packet::read_from(&mut decryptor)
         }
         else {
-            Packet::read_from(&mut stream)?
-        };
+            Packet::read_from(&mut stream)
+        }?;
 
         if let Some((ref mut mac, _)) = self.mac {
             let mut sig = vec![0; mac.size()];
@@ -101,7 +149,7 @@ impl<'a> Connection {
             mac.sign(packet.data(), self.seq.0, sig_cmp.as_mut_slice());
 
             if sig != sig_cmp {
-                return Err(ConnectionError::IntegrityError);
+                return Err(ConnectionError::Integrity);
             }
         }
 
@@ -113,11 +161,14 @@ impl<'a> Connection {
         Ok(packet)
     }
 
-    fn send(&mut self, mut stream: &mut Write, packet: Packet)
-        -> io::Result<()> {
+    fn send(
+        &mut self,
+        mut stream: &mut dyn Write,
+        packet: Packet,
+    ) -> io::Result<()> {
         debug!("Sending packet {}: {:?}", self.seq.1, packet);
 
-        let packet = packet.to_raw()?;
+        let packet = packet.into_raw()?;
 
         if let Some((_, ref mut s2c)) = self.encryption {
             let mut encrypted = vec![0; packet.data().len()];
@@ -141,12 +192,12 @@ impl<'a> Connection {
         Ok(())
     }
 
-    fn send_id(&mut self, stream: &mut Write) -> io::Result<()> {
+    fn send_id(&mut self, stream: &mut dyn Write) -> io::Result<()> {
         let id = format!("SSH-2.0-RedoxSSH_{}", env!("CARGO_PKG_VERSION"));
         info!("Identifying as {:?}", id);
 
-        stream.write(id.as_bytes())?;
-        stream.write(b"\r\n")?;
+        stream.write_all(id.as_bytes())?;
+        stream.write_all(b"\r\n")?;
         stream.flush()?;
 
         self.hash_data.server_id = Some(id);
@@ -154,7 +205,7 @@ impl<'a> Connection {
         Ok(())
     }
 
-    fn read_id(&mut self, stream: &mut Read) -> io::Result<()> {
+    fn read_id(&mut self, stream: &mut dyn Read) -> io::Result<()> {
         use std::str;
 
         let mut buf = [0; 255];
@@ -175,30 +226,24 @@ impl<'a> Connection {
     }
 
     fn generate_key(&mut self, id: &[u8], len: usize) -> Result<Vec<u8>> {
-        use self::ConnectionError::KeyGenerationError;
+        use self::ConnectionError::KeyGeneration;
 
-        let kex = self.key_exchange.take().ok_or(KeyGenerationError)?;
+        let kex = self.key_exchange.take().ok_or(KeyGeneration)?;
 
-        let key = kex.hash(
-            &[
-                kex.shared_secret().ok_or(KeyGenerationError)?,
-                kex.exchange_hash().ok_or(KeyGenerationError)?,
-                id,
-                self.session_id
-                    .as_ref()
-                    .ok_or(KeyGenerationError)?
-                    .as_slice(),
-            ],
-        );
+        let key = kex.hash(&[
+            kex.shared_secret().ok_or(KeyGeneration)?,
+            kex.exchange_hash().ok_or(KeyGeneration)?,
+            id,
+            self.session_id.as_ref().ok_or(KeyGeneration)?.as_slice(),
+        ]);
 
         self.key_exchange = Some(kex);
 
         Ok(key)
     }
 
-    pub fn process(&mut self, packet: Packet) -> Result<Option<Packet>> {
-        match packet.msg_type()
-        {
+    pub fn process_packet(&mut self, packet: Packet) -> Result<Option<Packet>> {
+        match packet.msg_type() {
             MessageType::KexInit => self.kex_init(packet),
             MessageType::NewKeys => self.new_keys(packet),
             MessageType::ServiceRequest => self.service_request(packet),
@@ -209,7 +254,7 @@ impl<'a> Connection {
             MessageType::KeyExchange(_) => self.key_exchange(packet),
             _ => {
                 error!("Unhandled packet: {:?}", packet);
-                Err(ConnectionError::ProtocolError)
+                Err(ConnectionError::Protocol)
             }
         }
     }
@@ -224,11 +269,10 @@ impl<'a> Connection {
         let mac_c2s = self.generate_key(b"E", 256)?;
         let mac_s2c = self.generate_key(b"F", 256)?;
 
-        self.encryption =
-            Some((
-                Box::new(AesCtr::new(enc_c2s.as_slice(), iv_c2s.as_slice())),
-                Box::new(AesCtr::new(enc_s2c.as_slice(), iv_s2c.as_slice())),
-            ));
+        self.encryption = Some((
+            Box::new(AesCtr::new(enc_c2s.as_slice(), iv_c2s.as_slice())),
+            Box::new(AesCtr::new(enc_s2c.as_slice(), iv_s2c.as_slice())),
+        ));
 
         self.mac = Some((
             Box::new(Hmac::new(mac_c2s.as_slice())),
@@ -244,7 +288,7 @@ impl<'a> Connection {
 
         trace!(
             "Service Request {:?}",
-            ::std::str::from_utf8(&name.as_slice()).unwrap()
+            ::std::str::from_utf8(name.as_slice()).unwrap()
         );
 
         let mut res = Packet::new(MessageType::ServiceAccept);
@@ -260,7 +304,7 @@ impl<'a> Connection {
         let method = reader.read_utf8()?;
 
         let success = if method == "password" {
-            assert!(reader.read_bool()? == false);
+            assert!(!(reader.read_bool()?));
             let pass = reader.read_utf8()?;
             pass == "hunter2"
         }
@@ -317,25 +361,29 @@ impl<'a> Connection {
         let name = reader.read_utf8()?;
         let want_reply = reader.read_bool()?;
 
-
-        let request = match &*name
-        {
-            "pty-req" => Some(ChannelRequest::Pty {
+        let request = match &*name {
+            "pty-req" => Some(ChannelRequest::Pty(PtyConfig {
                 term: reader.read_utf8()?,
                 chars: reader.read_uint32()? as u16,
                 rows: reader.read_uint32()? as u16,
                 pixel_width: reader.read_uint32()? as u16,
                 pixel_height: reader.read_uint32()? as u16,
                 modes: reader.read_string()?,
-            }),
+            })),
             "shell" => Some(ChannelRequest::Shell),
+            "env" => Some(ChannelRequest::Env(
+                String::from_utf8(reader.read_string()?).unwrap(), /* TODO: error handling */
+                String::from_utf8(reader.read_string()?).unwrap(),
+            )),
+            "exec" => Some(ChannelRequest::Exec(
+                String::from_utf8(reader.read_string()?).unwrap(),
+            )),
             _ => None,
         };
 
-
         if let Some(request) = request {
             let channel = self.channels.get_mut(&channel_id).unwrap();
-            channel.request(request);
+            channel.handle_request(request);
         }
         else {
             warn!("Unkown channel request {}", name);
@@ -357,13 +405,13 @@ impl<'a> Connection {
         let data = reader.read_string()?;
 
         let channel = self.channels.get_mut(&channel_id).unwrap();
-        channel.data(data.as_slice())?;
+        channel.write_data(data.as_slice())?;
 
         Ok(None)
     }
 
     fn kex_init(&mut self, packet: Packet) -> Result<Option<Packet>> {
-        use algorithm::*;
+        use crate::algorithm::*;
 
         let (kex_algo, srv_host_key_algo, enc_algo, mac_algo, comp_algo) = {
             let mut reader = packet.reader();
@@ -373,16 +421,18 @@ impl<'a> Connection {
             let srv_host_key_algos =
                 reader.read_enum_list::<PublicKeyAlgorithm>()?;
 
-            let enc_algos_c2s = reader.read_enum_list::<EncryptionAlgorithm>()?;
-            let enc_algos_s2c = reader.read_enum_list::<EncryptionAlgorithm>()?;
+            let enc_algos_c2s =
+                reader.read_enum_list::<EncryptionAlgorithm>()?;
+            let enc_algos_s2c =
+                reader.read_enum_list::<EncryptionAlgorithm>()?;
 
             let mac_algos_c2s = reader.read_enum_list::<MacAlgorithm>()?;
             let mac_algos_s2c = reader.read_enum_list::<MacAlgorithm>()?;
 
-            let comp_algos_c2s = reader
-                .read_enum_list::<CompressionAlgorithm>()?;
-            let comp_algos_s2c = reader
-                .read_enum_list::<CompressionAlgorithm>()?;
+            let comp_algos_c2s =
+                reader.read_enum_list::<CompressionAlgorithm>()?;
+            let comp_algos_s2c =
+                reader.read_enum_list::<CompressionAlgorithm>()?;
 
             (
                 negotiate(KEY_EXCHANGE, kex_algos.as_slice())?,
@@ -404,8 +454,8 @@ impl<'a> Connection {
 
         // Create a random 16 byte cookie
         use rand::Rng;
-        let mut rng = rand::thread_rng();
-        let cookie: Vec<u8> = rng.gen_iter::<u8>().take(16).collect();
+        let rng = rand::thread_rng();
+        let cookie: Vec<u8> = rng.sample_iter(Standard).take(16).collect();
 
         let mut packet = Packet::new(MessageType::KexInit);
         packet.write_raw_bytes(cookie.as_slice())?;
@@ -432,12 +482,12 @@ impl<'a> Connection {
     }
 
     fn key_exchange(&mut self, packet: Packet) -> Result<Option<Packet>> {
-        let mut kex = self.key_exchange.take().ok_or(
-            ConnectionError::KeyExchangeError,
-        )?;
+        let mut kex = self
+            .key_exchange
+            .take()
+            .ok_or(ConnectionError::KeyExchange)?;
 
-        let result = match kex.process(self, packet)
-        {
+        let result = match kex.process(self, packet) {
             KexResult::Done(packet) => {
                 self.state = ConnectionState::Established;
 
@@ -450,9 +500,8 @@ impl<'a> Connection {
                 Ok(Some(packet))
             }
             KexResult::Ok(packet) => Ok(Some(packet)),
-            KexResult::Error => Err(ConnectionError::KeyExchangeError),
+            KexResult::Error => Err(ConnectionError::KeyExchange),
         };
-
 
         self.key_exchange = Some(kex);
         result

@@ -1,23 +1,23 @@
 extern crate byteorder;
 extern crate rand;
-extern crate crypto;
+// extern crate crypto;
 extern crate num_bigint;
 #[macro_use]
 extern crate log;
-#[cfg(target_os = "redox")]
-extern crate syscall;
+// #[cfg(target_os = "redox")]
+// extern crate syscall;
 #[cfg(not(target_os = "redox"))]
 extern crate libc;
 
-mod error;
 mod algorithm;
-mod packet;
-mod message;
-mod connection;
-mod key_exchange;
-mod encryption;
-mod mac;
 mod channel;
+mod connection;
+mod encryption;
+mod error;
+mod key_exchange;
+mod mac;
+mod message;
+mod packet;
 
 pub mod public_key;
 pub mod server;

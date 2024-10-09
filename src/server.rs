@@ -3,13 +3,13 @@ use std::net::TcpListener;
 use std::sync::Arc;
 use std::thread;
 
-use connection::{Connection, ConnectionType};
-use public_key::KeyPair;
+use crate::connection::{Connection, ConnectionType};
+use crate::public_key::KeyPair;
 
 pub struct ServerConfig {
     pub host: String,
     pub port: u16,
-    pub key: Box<KeyPair>,
+    pub key: Box<dyn KeyPair>,
 }
 
 pub struct Server {
@@ -18,7 +18,9 @@ pub struct Server {
 
 impl Server {
     pub fn with_config(config: ServerConfig) -> Server {
-        Server { config: Arc::new(config) }
+        Server {
+            config: Arc::new(config),
+        }
     }
 
     pub fn run(&self) -> io::Result<()> {
@@ -42,7 +44,5 @@ impl Server {
                 }
             });
         }
-
-        Ok(())
     }
 }

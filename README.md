@@ -2,25 +2,49 @@
 
 A ssh client and server written entirely in Rust, primarily targeted at [Redox OS](http://redox-os.org).
 
+Please note that implementation is far from compleation
+and currently is not suitable for real usage.
+
 ## Features
 
 Currently implemented features, ordered by priority:
 
-  - [x] SSH Server
-  - [ ] SSH Client
-  - Key Exchange algorithms
-    - [x] `curve25519-sha256` (via [rust-crypto](https://github.com/DaGenix/rust-crypto))
-    - [ ] `diffie-hellman-group-exchange-sha1`
-  - Public Key algorithms
-    - [x] `ssh-ed25519` (via [rust-crypto](https://github.com/DaGenix/rust-crypto))
-    - [ ] `ssh-rsa`
-  - Encryption algorithms
-    - [x] `aes256-ctr` (via [rust-crypto](https://github.com/DaGenix/rust-crypto))
-    - [ ] `aes256-gcm`
-  - MAC algorithms
-    - [x] `hmac-sha2-256` (via [rust-crypto](https://github.com/DaGenix/rust-crypto))
-  - [ ] Port forwarding
-  - [ ] SCP File Transfers
+- [x] SSH Server
+- [ ] SSH Client
+- Key Exchange algorithms
+  - [x] `curve25519-sha256` (via
+        [~~rust-crypto~~](https://github.com/DaGenix/rust-crypto)
+        [curve25519-dalek](https://crates.io/crates/curve25519-dalek))
+  - [ ] `diffie-hellman-group-exchange-sha1`
+- Public Key algorithms
+  - [x] `ssh-ed25519` (via
+        [~~rust-crypto~~](https://github.com/DaGenix/rust-crypto)
+        [ed25519-dalek](https://crates.io/crates/ed25519-dalek))
+  - [ ] `ssh-rsa`
+- Encryption algorithms
+  - [x] `aes256-ctr` (via
+        [~~rust-crypto~~](https://github.com/DaGenix/rust-crypto)
+        [ctr](https://crates.io/crates/ctr) and [aes](https://crates.io/crates/aes))
+  - [ ] `aes256-gcm`
+- MAC algorithms
+  - [x] `hmac-sha2-256` (via
+        [~~rust-crypto~~](https://github.com/DaGenix/rust-crypto)
+        [sha2](https://crates.io/crates/sha2) and [hmac](https://crates.io/crates/hmac))
+- Shell
+  - [x] Std(in|out|err) without PTY
+  - [ ] PTY
+  - [x] Passing of environment variables
+  - [ ] Return exit status codes
+  - [ ] Signals
+  - [ ] Specification of a command
+- [ ] Authentication and executing as a specific user
+  - [ ] Password validation (not hardcoded)
+  - [ ] SSH keys
+- Key file formats
+  - [x] Something custom
+  - [ ] OpenSSH keys
+- [ ] Port forwarding
+- [ ] SCP File Transfers
 
 ## License
 
